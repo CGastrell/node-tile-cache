@@ -1,0 +1,26 @@
+{
+  "name": "node-tile-cache",
+  "version": "0.0.0",
+  "description": "cache de tiles para mapas",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CGastrell/node-tile-cache.git"
+  },
+  "keywords": [
+    "cache",
+    "tile",
+    "maps",
+    "wms",
+    "tms"
+  ],
+  "author": "Christian Gastrell",
+  "license": "BSD",
+  "bugs": {
+    "url": "https://github.com/CGastrell/node-tile-cache/issues"
+  },
+  "homepage": "https://github.com/CGastrell/node-tile-cache"
+}
