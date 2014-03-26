@@ -46,20 +46,40 @@ Cache.prototype.get = function(url, expiration) {
 	expiration = expiration || 30 * 60 * 60 * 1000;
 
 	if(fs.existsSync(cachePath)) {
+		console.log('File is cached at '+cachePath);
 		var fileStats = fs.statSync(cachePath);
 		if(new Date() - fileStats.ctime.getTime() > expiration) {
 			//expicho, hay que buscarlo de nuevo
 		}
 		return fs.readFileSync(cachePath);
 	}
-	var req = http.request({}, function(res) {
-			console.log('STATUS: ' + res.statusCode);
-			console.log('HEADERS: ' + JSON.stringify(res.headers));
-			res.setEncoding('utf8');
-			res.on('data', function (chunk) {
-			console.log('BODY: ' + chunk);
-		});
+	// var req = http.request({}, function(res) {
+	// 		console.log('STATUS: ' + res.statusCode);
+	// 		console.log('HEADERS: ' + JSON.stringify(res.headers));
+	// 		res.setEncoding('utf8');
+	// 		res.on('data', function (chunk) {
+	// 		console.log('BODY: ' + chunk);
+	// 	});
+	// });
+
+	var handler = function(data) {
+		return data;
+	}
+
+	var r = http.request({
+		host: '172.20.203.111',
+		port: 3128,
+		path: url
+	}, function(res) {
+		console.log('Got response');
+	  	console.log(arguments);
+	  	res.on('data',handler);
 	});
+
+	r.on('error', function(e) {
+	  console.log("Got error: " + e.message);
+	});
+	r.end();
 
 	// console.log(utils.inspect(fileStats));
 	// console.log('file not here, should stash as ' + _dir + '/' + hashed);

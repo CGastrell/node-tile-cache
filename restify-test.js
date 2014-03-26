@@ -1,5 +1,4 @@
 var restify = require('restify'),
-	filecache = require('./Cache')('./cache'),
 	utils = require('util');
 
 
@@ -8,6 +7,7 @@ function respond(req, res, next) {
 }
 
 //necesito un tms proxy, que tenga un cache, que tenga un filestorage...
+var filecache = require('./Cache')('./cache');
 
 TMSProxy = function (req, res, next) {
 	
@@ -20,15 +20,21 @@ TMSProxy = function (req, res, next) {
 	var tileURL = utils.format("%s/%s/%s/%s/%s.%s", baseURL, capa, req.params.z, x, req.params.y, format + "8");
 
 	var data = filecache.get(tileURL);
+	
+	res.send({done:tileURL});
+	
 
-	res.writeHead(200, {
-		'Content-Type': 'image/png',
-		'Content-Length': data.length
-	});
-	res.write(data);
-	res.end();
+	// res.writeHead(200, {
+	// 	'Content-Type': 'image/png',
+	// 	'Content-Length': data.length
+	// });
+	// res.write(data);
+	// res.end();
+
 	// res.send({cacheDir: filecache.getPath(tileURL), url: tileURL, some: filecache.get(tileURL), time: new Date()});
 };
+
+
 
 var server = restify.createServer();
 server.get('/hello/:name', respond);
