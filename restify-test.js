@@ -1,5 +1,5 @@
 var restify = require('restify'),
-	filecache = require('./FileCache')('./cache'),
+	filecache = require('./Cache')('./cache'),
 	utils = require('util');
 
 
@@ -17,10 +17,17 @@ TMSProxy = function (req, res, next) {
 	var format = xAndFormatSplit[1];
 	var capa = req.params.capa + '@EPSG:3857@png8';
 	delete req.params.xAndFormat;
-	// console.log(req);
 	var tileURL = utils.format("%s/%s/%s/%s/%s.%s", baseURL, capa, req.params.z, x, req.params.y, format + "8");
-	// res.send(this);
-	res.send({cacheDir: filecache.getPath(tileURL), url: tileURL, some: filecache.get(tileURL), time: new Date()});
+
+	var data = filecache.get(tileURL);
+
+	res.writeHead(200, {
+		'Content-Type': 'image/png',
+		'Content-Length': data.length
+	});
+	res.write(data);
+	res.end();
+	// res.send({cacheDir: filecache.getPath(tileURL), url: tileURL, some: filecache.get(tileURL), time: new Date()});
 };
 
 var server = restify.createServer();
