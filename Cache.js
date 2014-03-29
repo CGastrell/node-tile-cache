@@ -2,9 +2,10 @@ var crypto = require('crypto');
 var fs = require('fs');
 var utils = require('util');
 var http = require('http');
+var events = require('events').EventEmitter;
 
 function Cache(path) {
-	this._dir = path;
+	this._dir = path || "./cache";
 
 	// console.log(_dir + ' exists?: '+fs.existsSync(_dir));
 	if(fs.existsSync(this._dir) !== true) {
@@ -25,6 +26,9 @@ Cache.prototype._hash = function(str) {
 };
 
 Cache.prototype._name = function(key) {
+	setTimeout(function(){
+		console.log('done');
+	},5000);
 	return this._dir + "/" + this._hash(key);
 };
 
