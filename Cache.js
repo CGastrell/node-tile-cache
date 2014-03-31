@@ -1,3 +1,4 @@
+//estilo, extend y prototypes sacados de https://github.com/tcs-de/nodecache
 var crypto = require('crypto');
 var fs = require('fs');
 var utils = require('util');
@@ -19,6 +20,7 @@ function Cache(path) {
 	}
 	console.log('Cache init on ' + fs.realpathSync(this._dir));
 	this._fileData = null;
+	this.events = new events();
 };
 
 Cache.prototype._hash = function(str) {
@@ -26,7 +28,9 @@ Cache.prototype._hash = function(str) {
 };
 
 Cache.prototype._name = function(key) {
+	var _this = this;
 	setTimeout(function(){
+		_this.events.emit('ready',key,_this._hash(key));
 		console.log('done');
 	},5000);
 	return this._dir + "/" + this._hash(key);
