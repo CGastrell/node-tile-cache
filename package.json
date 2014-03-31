@@ -24,8 +24,6 @@
   },
   "homepage": "https://github.com/CGastrell/node-tile-cache",
   "devDependencies": {
-    "node-static": "~0.7.3",
-    "restify": "~2.6.3",
     "jaws": "~0.12.1"
   }
 }
