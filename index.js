@@ -34,7 +34,7 @@ TMSProxy = function (req, res) {
 
 app.route("/tms/:capa/:z/:y/:x.:format", TMSProxy);
 
-app.httpServer.listen(5000, function () {
+app.httpServer.listen(80, function () {
 	console.log("Running now.")
 	setInterval(function () {
 	  app.flush();
