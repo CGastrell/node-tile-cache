@@ -2,7 +2,7 @@ var jaws = require("jaws");
 var utils = require("util");
 var fc = require("./FileCache");
 var app = jaws();
-
+var port = process.env.PORT || 5000;
 
 TMSProxy = function (req, res) {
 	var vars = req.route.params;
@@ -34,7 +34,7 @@ TMSProxy = function (req, res) {
 
 app.route("/tms/:capa/:z/:y/:x.:format", TMSProxy);
 
-app.httpServer.listen(80, function () {
+app.httpServer.listen(port, function () {
 	console.log("Running now.")
 	setInterval(function () {
 	  app.flush();
