@@ -1,8 +1,8 @@
 (function() {
-  var EventEmitter, FileCache, _,
-  __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  var EventEmitter, FileCache,
+  // __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  // __slice = [].slice;
   __hasProp = {}.hasOwnProperty,
-  __slice = [].slice;
   __extendClass = function(child, parent) {
     for (var key in parent) {
       if (__hasProp.call(parent, key)) child[key] = parent[key];
@@ -44,6 +44,17 @@
       //
     };
 
+    FileCache.prototype.getStats = function() {
+      // var fileStats = fs.statSync(this.options.dir);
+
+      var fileStats = fs.readdirSync(this.options.dir);
+      
+      // if(new Date() - fileStats.ctime.getTime() > expiration) {
+      //   //expicho, hay que buscarlo de nuevo
+      // }
+      return fileStats;
+    };
+
     FileCache.prototype.get = function(url) {
       //
       var cachePath = this._name(url);
@@ -53,18 +64,11 @@
 
       var stream;
       if(fs.existsSync(cachePath)) {
-        this.emit("CACHE_HIT", 'File is cached at '+cachePath);
+        this.emit("cache_hit", 'File is cached at '+cachePath);
         stream = fs.createReadStream(cachePath);
-        // fs.readFile(cachePath, function(){
-        //   _this.emit('ready', cachePath);
-        // });
-        // var fileStats = fs.statSync(cachePath);
-        // if(new Date() - fileStats.ctime.getTime() > expiration) {
-        //   //expicho, hay que buscarlo de nuevo
-        // }
-        // return fs.readFileSync(cachePath);
 
         stream.on('data', function(chunk){
+          // console.log(arguments);
           _this.emit('data', chunk);
         });
 
@@ -73,7 +77,7 @@
 
         });
       }else{
-        this.emit("CACHE_MISS", url);
+        this.emit("cache_miss", url);
         writeMode = true;
 
         var tile = fs.createWriteStream(cachePath)
