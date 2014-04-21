@@ -13,24 +13,27 @@ TMSProxy = function (req, res) {
 	// app.addHeader("Content-Type", "image/png");
 	// res.statusCode = 200;
 	var _this = this;
-	this.cache.on('cache_miss',function MISS(){
+	this.cache.on('cache_miss',function MISS(data){
 		console.log('CACHE MISS:');
-		console.log(arguments);
+		console.log(data);
 	});
-	this.cache.on('cache_hit',function HIT(){
+	this.cache.on('cache_hit',function HIT(data){
 		console.log('CACHE HIT:');
-		console.log(arguments);
+		console.log(data);
 	});
-	this.cache.on('data',function(chunk){
+	this.cache.on('data',function DATA(chunk){
 		if(!_this.res) return;
-		console.log('receiving data: '+chunk.length);
+		console.log('DATA: '+chunk.length);
 		_this.res.write(chunk);
 	});
-	this.cache.on('end', function() {
+	this.cache.on('end', function END(msg) {
 		if(!_this.res) return;
-		console.log('end');
-		console.log(arguments);
+		console.log('END: '+msg);
 		_this.res.end();
+	});
+	this.cache.on('error', function ERROR(err){
+		console.log(err);
+		_this.res.error(err);
 	});
 	// cache.get(tileURL);
 };

@@ -63,8 +63,8 @@
       var writeMode = false;
 
       var stream;
-      if(fs.existsSync(cachePath)) {
-        this.emit("cache_hit", 'File is cached at '+cachePath);
+      if(fs.existsSync(cachePath) && fs.statSync(cachePath).size > 0) {
+        this.emit("cache_hit", 'Request for '+url+' is cached at '+cachePath);
         stream = fs.createReadStream(cachePath);
 
         stream.on('data', function(chunk){
@@ -73,14 +73,17 @@
         });
 
         stream.on('end', function(chunk) {
-          _this.emit('end', chunk);
+          _this.emit('end', 'done');
+        });
 
+        stream.on('error', function(err) {
+          _this.emit('error',err)
         });
       }else{
-        this.emit("cache_miss", url);
+        this.emit("cache_miss", 'Caching request: '+url+' at '+cachePath);
         writeMode = true;
 
-        var tile = fs.createWriteStream(cachePath)
+        var tile = fs.createWriteStream(cachePath);
         http.get(url, function(res){
 
           stream = res;
@@ -90,8 +93,11 @@
           });
 
           stream.on('end', function() {
-            _this.emit('end');
+            _this.emit('end', url+' cached');
           });
+
+        }).on('error', function(err) {
+          _this.emit('error',err);
         });
         // }).on('end',function(){console.log('caruso')});
         // request(url,function(err, incomingMsg, body){
