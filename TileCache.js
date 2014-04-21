@@ -4,38 +4,56 @@ var crypto = require('crypto');
 var http = require('http');
 var fs = require('fs');
 
+function Tile(params) {
+  this.capa = params.capa;
+  this.x = params.x;
+  this.y = params.y;
+  this.z = params.z;
+  this.format = params.format;
+  this.stat = {};
+  return this;
+}
 function TileCache(options) {
   var self = this;
 
   self.options = {
     source: 'http://mapa.ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
     dir: "./cache",
-    ttl: 1024
+    ttl: 1024,
+    timeout: 5000
   };
 
   //extend defaults with options
   for (var x in options) {
     self.options[x] = options[x]
-  }
+  };
 }
 
 util.inherits(TileCache, events.EventEmitter);
 
-TileCache.prototype.queryTile = function(params) {
-  var url = this.buildUrl(params);
+TileCache.prototype.queryTile = function() {
+  var params = this.options.tileParams;
+  var url = this.buildUrl();
+  var file = this._name(url);
+  var inCache = this.isCached(url);
   var r = {
-    cached: this.isCached(url),
-    url: url,
-    filePath: this._name(url)
+    request: util.format("%s/%s/%s/%s.%s", params.capa, params.z, params.y, params.x, "png"),
+    cached: inCache,
+    sourceUrl: url,
+    uri: this.buildUri(),
+    filePath: file,
+    fileStats: inCache ? fs.statSync(file) : {}
   };
   return r;
 };
-
-TileCache.prototype.buildUrl = function(params) {
-  var vars = params;
+TileCache.prototype.buildUri = function() {
+  var vars = this.options.tileParams;
   var capa = vars.capa + '@EPSG:3857@png8';
-  // console.log(req);
-  var tileURL = util.format("%s/%s/%s/%s/%s.%s", this.options.source, capa, vars.z, vars.y, vars.x, vars.format + "8");
+  var tileURi = util.format("/%s/%s/%s/%s.%s", capa, vars.z, vars.y, vars.x, "png8");
+  return tileURi;
+};
+TileCache.prototype.buildUrl = function() {
+  var tileURL = this.options.source + this.buildUri();
   return tileURL;
 };
 TileCache.prototype.isCached = function(url) {
@@ -50,57 +68,52 @@ TileCache.prototype._name = function(key) {
   return this.options.dir + "/" + this._hash(key);
 };
 
-TileCache.prototype.get = function(url) {
+TileCache.prototype.getTile = function() {
   //
-  var cachePath = this._name(url);
+  var tileInfo = this.queryTile();
   var _this = this;
   var expiration = this.options.ttl;
 
   var stream;
-  if(fs.existsSync(cachePath) && fs.statSync(cachePath).size > 0) {
-    this.emit("cache_hit", {cache:'HIT',filePath:cachePath});
-    stream = fs.createReadStream(cachePath);
+  if(tileInfo.cached && tileInfo.fileStats.size > 0) {
+    this.emit("cache_hit", { type: 'CACHE_HIT', tile: tileInfo });
+    stream = fs.createReadStream(tileInfo.filePath);
     stream.on('error', function(err) {
       _this.emit('error',err);
     });
-
-    this.emit('tile_ready',stream);
-
-    // stream.on('data', function(chunk) {
-    //   // console.log(arguments);
-    //   _this.emit('data', chunk);
-    // });
-
-    // stream.on('end', function(chunk) {
-    //   _this.emit('end', 'done');
-    // });
-
+    this.emit('tile_ready', stream, tileInfo.fileStats.size);
   }else{
-    this.emit("cache_miss", {cache:'MISS',filePath:cachePath});
+    if(tileInfo.cached) {
+      fs.unlinkSync(tileInfo.filePath);
+    }
+    this.emit("cache_miss", {type:'CACHE_MISS', tile: tileInfo });
 
-    stream = fs.createWriteStream(cachePath);
+    stream = fs.createWriteStream(tileInfo.filePath);
     stream.on('error', function(err) {
       _this.emit('error',err);
     });
 
-    // stream.on('data', function(chunk) {
-    //   _this.emit('data', chunk);
-    // });
+    var options = {
+      host: "172.20.203.111",
+      port: 3128,
+      path: tileInfo.sourceUrl
+    }
 
-    // stream.on('end', function(chunk) {
-    //   _this.emit('end', 'done');
-    // });
-
-    http.get(url, function(res){
+    var req = http.get(options, function(res){
 
       res.pipe(stream,{end: false});
       res.on('end', function(){
         stream.end();
-        _this.emit('tile_ready',fs.createReadStream(cachePath));
+        _this.emit('tile_ready',fs.createReadStream(tileInfo.filePath), tileInfo.fileStats.size);
       })
       
     }).on('error', function(err) {
       _this.emit('error',err);
+    }).on('socket', function(socket) {
+      socket.setTimeout(_this.options.timeout);
+      socket.on('timeout',function(){
+        req.abort();
+      });
     });
     // }).on('end',function(){console.log('caruso')});
     // request(url,function(err, incomingMsg, body){
