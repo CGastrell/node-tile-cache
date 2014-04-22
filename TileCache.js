@@ -3,16 +3,28 @@ var util = require('util');
 var crypto = require('crypto');
 var http = require('http');
 var fs = require('fs');
+// var stream = require('stream');
 
 function Tile(params) {
+  this.readable = true;
+  this.writable = true;
   this.capa = params.capa;
   this.x = params.x;
   this.y = params.y;
   this.z = params.z;
   this.format = params.format;
-  this.stat = {};
-  return this;
+  this.stats = {};
 }
+util.inherits(Tile, require('stream'));
+Tile.prototype.write = function () {
+  args = Array.prototype.slice.call(arguments, 0);
+  this.emit.apply(this, ['data'].concat(args))
+};
+Tile.prototype.end = function () {
+  args = Array.prototype.slice.call(arguments, 0);
+  this.emit.apply(this, ['end'].concat(args))
+};
+
 function TileCache(options) {
   var self = this;
 
@@ -30,30 +42,45 @@ function TileCache(options) {
 }
 
 util.inherits(TileCache, events.EventEmitter);
-
-TileCache.prototype.queryTile = function() {
-  var params = this.options.tileParams;
-  var url = this.buildUrl();
+TileCache.prototype.tileStats = function(tile) {
+  var params = tile;
+  var url = this.buildUrl(tile);
   var file = this._name(url);
   var inCache = this.isCached(url);
   var r = {
     request: util.format("%s/%s/%s/%s.%s", params.capa, params.z, params.y, params.x, "png"),
     cached: inCache,
     sourceUrl: url,
-    uri: this.buildUri(),
+    uri: this.buildUri(tile),
     filePath: file,
     fileStats: inCache ? fs.statSync(file) : {}
   };
   return r;
+}
+TileCache.prototype.queryTile = function(params) {
+  
+  var url = this.buildUrl(params);
+  var file = this._name(url);
+  var inCache = this.isCached(url);
+  var r = {
+    request: util.format("%s/%s/%s/%s.%s", params.capa, params.z, params.y, params.x, "png"),
+    cached: inCache,
+    sourceUrl: url,
+    uri: this.buildUri(params),
+    filePath: file,
+    etag: crypto.createHash('md5').update(str).digest('hex'),
+    fileStats: inCache ? fs.statSync(file) : {}
+  };
+  return r;
 };
-TileCache.prototype.buildUri = function() {
-  var vars = this.options.tileParams;
+TileCache.prototype.buildUri = function(params) {
+  var vars = params;
   var capa = vars.capa + '@EPSG:3857@png8';
   var tileURi = util.format("/%s/%s/%s/%s.%s", capa, vars.z, vars.y, vars.x, "png8");
   return tileURi;
 };
-TileCache.prototype.buildUrl = function() {
-  var tileURL = this.options.source + this.buildUri();
+TileCache.prototype.buildUrl = function(params) {
+  var tileURL = this.options.source + this.buildUri(params);
   return tileURL;
 };
 TileCache.prototype.isCached = function(url) {
@@ -68,46 +95,47 @@ TileCache.prototype._name = function(key) {
   return this.options.dir + "/" + this._hash(key);
 };
 
-TileCache.prototype.getTile = function() {
+TileCache.prototype.getTile = function(params) {
   //
-  var tileInfo = this.queryTile();
+  var tile = new Tile(params);
+  var tileInfo = this.tileStats(tile);
   var _this = this;
   var expiration = this.options.ttl;
 
-  var stream;
   if(tileInfo.cached && tileInfo.fileStats.size > 0) {
     this.emit("cache_hit", { type: 'CACHE_HIT', tile: tileInfo });
-    stream = fs.createReadStream(tileInfo.filePath);
-    stream.on('error', function(err) {
+    var rstream = fs.createReadStream(tileInfo.filePath);
+    rstream.on('error', function(err) {
+      tile.emit('error',err);
       _this.emit('error',err);
     });
-    this.emit('tile_ready', stream, tileInfo.fileStats.size);
+    rstream.pipe(tile);
+
   }else{
     if(tileInfo.cached) {
       fs.unlinkSync(tileInfo.filePath);
     }
     this.emit("cache_miss", {type:'CACHE_MISS', tile: tileInfo });
 
-    stream = fs.createWriteStream(tileInfo.filePath);
-    stream.on('error', function(err) {
+    var wstream = fs.createWriteStream(tileInfo.filePath);
+    wstream.on('error', function(err) {
       _this.emit('error',err);
     });
 
-    var options = {
-      host: "172.20.203.111",
-      port: 3128,
-      path: tileInfo.sourceUrl
-    }
-
-    var req = http.get(options, function(res){
-
-      res.pipe(stream,{end: false});
+    // var options = {
+    //   host: "172.20.203.111",
+    //   port: 3128,
+    //   path: tileInfo.sourceUrl
+    // }
+    // var req = http.get(options, function(res){
+    var req = http.get(tileInfo.sourceUrl, function(res){
+      res.pipe(wstream,{end: false});
       res.on('end', function(){
-        stream.end();
-        _this.emit('tile_ready',fs.createReadStream(tileInfo.filePath), tileInfo.fileStats.size);
-      })
-      
+        wstream.end();
+        fs.createReadStream(tileInfo.filePath).pipe(tile);
+      });
     }).on('error', function(err) {
+      tile.emit('error',err);
       _this.emit('error',err);
     }).on('socket', function(socket) {
       socket.setTimeout(_this.options.timeout);
@@ -115,9 +143,9 @@ TileCache.prototype.getTile = function() {
         req.abort();
       });
     });
-    // }).on('end',function(){console.log('caruso')});
-    // request(url,function(err, incomingMsg, body){
+
   }
+  return tile;
 };
 
 

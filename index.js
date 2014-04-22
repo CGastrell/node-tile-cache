@@ -5,50 +5,54 @@ var tc = require("./TileCache");
 var app = jaws();
 var port = process.env.PORT || 5000;
 
-// var tmsProxy = new tms();
+var tileCache = new tc();
+
+tileCache.on('cache_hit',function(data){
+	console.log('HIT:');
+	console.log(data);
+});
+tileCache.on('cache_miss',function(data){
+	console.log('MISS:');
+	console.log(data);
+});
+tileCache.on('error',function(err){
+	console.log(err);
+})
 
 getTile2 = function(req,res) {
-	var tileCache = new tc({tileParams:req.route.params});
-	if(req.route.params.format === 'json'){
-		res.json(tileCache.queryTile());
-		return;
-	}
-	tileCache.on('cache_hit',function(data){
-		console.log('HIT:');
-		console.log(data);
-	});
-	tileCache.on('cache_miss',function(data){
-		console.log('MISS:');
-		console.log(data);
-	});
-	tileCache.on('error',function(err){
+	var time = process.hrtime();
+
+	var tile = tileCache.getTile(req.route.params);
+	tile.on('error',function(err){
 		//aca tendria que ir un switch para disintos errores
-		res.error("Tile source timeout",408);
+		res.error(err,408);
 	});
-	tileCache.once('tile_ready', function(stream, size){
-		console.log('tile ready');
-		// console.log(arguments);
+	tile.pipe(res);
+	tile.on('readable', function(){
+		
 		res.writeHead(200,{
 			'Content-Type': 'image/png',
-			'Content-Length': size,
 			'ETag':'hola'
 		});
-		stream.pipe(res).on('end',function(){
-			res.end();
-		});
-		// res.end();
-		return;
 	});
-	// console.log(req.route);
-	tileCache.getTile();
-	return;
+	// tileCache.once('tile_ready', function(stream, size){
+	// 	console.log('tile ready');
+	// 	// console.log(arguments);
+	// 	stream.pipe(res).on('end',function(){
+	// 		res.end();
+	// 	});
+	// 	// res.end();
+	// 	return;
+	// });
+	// // console.log(req.route);
+	// tileCache.getTile(req.route.params);
+	// return;
 }
 getTile = function(req, res) {
 	tmsProxy.getTile(req, res);
 }
 queryTile = function(req, res) {
-	var tileCache = new tc({tileParams:req.route.params});
-	res.json(tileCache.queryTile());
+	res.json(tileCache.queryTile(req.route.params));
 }
 cacheStats = function(req, res) {
 	var cache = new fc();
