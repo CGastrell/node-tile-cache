@@ -3,7 +3,7 @@ var util = require('util');
 var crypto = require('crypto');
 var http = require('http');
 var fs = require('fs');
-// var stream = require('stream');
+
 
 function Tile(params) {
   this.readable = true;
@@ -27,12 +27,13 @@ Tile.prototype.end = function () {
 
 function TileCache(options) {
   var self = this;
-
+  this.urlRotate = 0;
   self.options = {
-    source: 'http://mapa.ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
+    source: ['http://mapa.ign.gob.ar/geoserver/gwc/service/tms/1.0.0'],
     dir: "./cache",
     ttl: 1024,
-    timeout: 5000
+    timeout: 5000,
+    transform: function(tileParams) {return tileParams;}
   };
 
   //extend defaults with options
@@ -48,7 +49,7 @@ TileCache.prototype.tileStats = function(tile) {
   var file = this._name(url);
   var inCache = this.isCached(url);
   var r = {
-    request: util.format("%s/%s/%s/%s.%s", params.capa, params.z, params.y, params.x, "png"),
+    request: util.format("%s/%s/%s/%s.%s", params.capa, params.z, params.x, params.y, params.format),
     cached: inCache,
     sourceUrl: url,
     uri: this.buildUri(tile),
@@ -63,24 +64,24 @@ TileCache.prototype.queryTile = function(params) {
   var file = this._name(url);
   var inCache = this.isCached(url);
   var r = {
-    request: util.format("%s/%s/%s/%s.%s", params.capa, params.z, params.y, params.x, "png"),
+    request: util.format("%s/%s/%s/%s.%s", params.capa, params.z, params.x, params.y, params.format),
     cached: inCache,
     sourceUrl: url,
     uri: this.buildUri(params),
     filePath: file,
-    etag: crypto.createHash('md5').update(str).digest('hex'),
+    // etag: crypto.createHash('md5').update(str).digest('hex'),
     fileStats: inCache ? fs.statSync(file) : {}
   };
   return r;
 };
 TileCache.prototype.buildUri = function(params) {
-  var vars = params;
-  var capa = vars.capa + '@EPSG:3857@png8';
-  var tileURi = util.format("/%s/%s/%s/%s.%s", capa, vars.z, vars.y, vars.x, "png8");
+  var vars = this.options.transform(params);
+  var tileURi = util.format("/%s/%s/%s/%s.%s", vars.capa, vars.z, vars.x, vars.y, vars.format);
   return tileURi;
 };
 TileCache.prototype.buildUrl = function(params) {
-  var tileURL = this.options.source + this.buildUri(params);
+  this.urlRotate = ++this.urlRotate % this.options.source.length;
+  var tileURL = this.options.source[this.urlRotate] + this.buildUri(params);
   return tileURL;
 };
 TileCache.prototype.isCached = function(url) {
@@ -97,7 +98,7 @@ TileCache.prototype._name = function(key) {
 
 TileCache.prototype.getTile = function(params) {
   //
-  var tile = new Tile(params);
+  var tile = new Tile(this.options.transform(params));
   var tileInfo = this.tileStats(tile);
   var _this = this;
   var expiration = this.options.ttl;
@@ -122,13 +123,13 @@ TileCache.prototype.getTile = function(params) {
       _this.emit('error',err);
     });
 
-    // var options = {
-    //   host: "172.20.203.111",
-    //   port: 3128,
-    //   path: tileInfo.sourceUrl
-    // }
-    // var req = http.get(options, function(res){
-    var req = http.get(tileInfo.sourceUrl, function(res){
+    var options = {
+      host: "172.20.203.111",
+      port: 3128,
+      path: tileInfo.sourceUrl
+    }
+    var req = http.get(options, function(res){
+    // var req = http.get(tileInfo.sourceUrl, function(res){
       res.pipe(wstream,{end: false});
       res.on('end', function(){
         wstream.end();

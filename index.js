@@ -1,28 +1,70 @@
 var jaws = require("jaws");
 var fc = require("./FileCache");
 var tmsProxy = require("./TMSProxy");
-var tc = require("./TileCache");
+var tileCache = require("./TileCache");
 var app = jaws();
 var port = process.env.PORT || 5000;
 
-var tileCache = new tc();
 
-tileCache.on('cache_hit',function(data){
+var argenmapTileCache = new tileCache({
+	transform: function(tileParams) {
+		var r = {};
+		for (var x in tileParams) {
+			r[x] = tileParams[x]
+		};
+		r.capa += '@EPSG:3857@png8';
+		r.format = "png8";
+		return r;
+	}
+});
+var osmTileCache = new tileCache({
+	source: ['http://a.tile.openstreetmaps.org','http://b.tile.openstreetmaps.org','http://c.tile.openstreetmaps.org'],
+	transform: function(tileParams) {
+		var r = {};
+		for (var x in tileParams) { //extend barato para no modificar el param original
+			r[x] = tileParams[x]
+		};
+		
+		// Invert tile y origin from top to bottom of map
+		var ymax = 1 << r.z;
+		r.y = ymax - r.y - 1;
+		r.capa = '';
+		return r;
+	},
+	timeout: 10000
+})
+
+// Event Handlers
+argenmapTileCache.on('cache_hit',function(data){
 	console.log('HIT:');
 	console.log(data);
 });
-tileCache.on('cache_miss',function(data){
+argenmapTileCache.on('cache_miss',function(data){
 	console.log('MISS:');
 	console.log(data);
 });
-tileCache.on('error',function(err){
+argenmapTileCache.on('error',function(err){
+	console.log('ERROR: ');
 	console.log(err);
-})
+});
+osmTileCache.on('error',function(err){
+	console.log('ERROR: ');
+	console.log(err);
+});
 
-getTile2 = function(req,res) {
+// Request Handlers
+getTile = function(req,res) {
 	var time = process.hrtime();
+	var tile;
+	switch(req.route.params.capa) {
+		case "osm":
+			tile = osmTileCache.getTile(req.route.params);
+		break;
+		default:
+			tile = argenmapTileCache.getTile(req.route.params);
+		break;
+	}
 
-	var tile = tileCache.getTile(req.route.params);
 	tile.on('error',function(err){
 		//aca tendria que ir un switch para disintos errores
 		res.error(err,408);
@@ -35,24 +77,17 @@ getTile2 = function(req,res) {
 			'ETag':'hola'
 		});
 	});
-	// tileCache.once('tile_ready', function(stream, size){
-	// 	console.log('tile ready');
-	// 	// console.log(arguments);
-	// 	stream.pipe(res).on('end',function(){
-	// 		res.end();
-	// 	});
-	// 	// res.end();
-	// 	return;
-	// });
-	// // console.log(req.route);
-	// tileCache.getTile(req.route.params);
-	// return;
 }
-getTile = function(req, res) {
-	tmsProxy.getTile(req, res);
-}
+
 queryTile = function(req, res) {
-	res.json(tileCache.queryTile(req.route.params));
+	switch(req.route.params.capa) {
+		case "osm":
+			res.json(osmTileCache.queryTile(req.route.params));
+		break;
+		default:
+			res.json(argenmapTileCache.queryTile(req.route.params));
+		break;
+	}
 }
 cacheStats = function(req, res) {
 	var cache = new fc();
@@ -60,12 +95,10 @@ cacheStats = function(req, res) {
 	res.json(cache.getStats());
 }
 
-//si en este route uso tmsProxy.getTile, la funcion se ejecuta con context de app
-//tengo que declarar getTile arriba a modo de wrapper y llamarla desde ahi... (?)
-// app.route("/tms/:capa/:z/:y/:x.:format", getTile).nocache();
-app.route("/tms/:capa/:z/:y/:x.:format", getTile2).nocache();
-app.route("/tms/:capa/:z/:y/:x.:format/status.json", queryTile).nocache();
-app.route("/cache/status", cacheStats).nocache();
+app.route("/tms/:capa/:z/:x/:y.:format", getTile).nocache();
+// app.route("/tms/osm/:z/:y/:x.:format", getTileDeOsm).nocache();
+app.route("/tms/:capa/:z/:x/:y.:format/status.json", queryTile).nocache();
+app.route("/cache/status.json", cacheStats).nocache();
 
 app.httpServer.listen(port, function () {
 	console.log("Running now.")
