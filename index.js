@@ -69,13 +69,25 @@ getTile = function(req,res) {
 		//aca tendria que ir un switch para disintos errores
 		res.error(err,408);
 	});
-	tile.pipe(res);
-	tile.on('readable', function(){
-		
+	tile.on('ready',function(){
+		console.log('ready event');
 		res.writeHead(200,{
 			'Content-Type': 'image/png',
 			'ETag':'hola'
 		});
+		tile.pipe(res);
+	});
+	tile.on('pipe',function(){
+		console.log('pipe event');
+	});
+	tile.on('end',function(){
+		console.log('end event');
+	});
+	tile.on('close',function(){
+		console.log('close event');
+	});
+	tile.on('readable', function(){
+		console.log('readable');
 	});
 }
 

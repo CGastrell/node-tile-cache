@@ -110,8 +110,10 @@ TileCache.prototype.getTile = function(params) {
       tile.emit('error',err);
       _this.emit('error',err);
     });
-    rstream.pipe(tile);
-
+    rstream.on('end', function(){
+      tile.emit('ready');
+      rstream.pipe(tile);
+    });
   }else{
     if(tileInfo.cached) {
       fs.unlinkSync(tileInfo.filePath);
@@ -129,12 +131,19 @@ TileCache.prototype.getTile = function(params) {
       path: tileInfo.sourceUrl
     }
     var req = http.get(options, function(res){
-    // var req = http.get(tileInfo.sourceUrl, function(res){
       res.pipe(wstream,{end: false});
       res.on('end', function(){
         wstream.end();
+        tile.emit('ready');
         fs.createReadStream(tileInfo.filePath).pipe(tile);
       });
+    // }).on('response',function(incoming){
+    //   console.log('response event');
+    //   incoming.pipe(wstream,{end: false});
+    //   incoming.on('end', function(){
+    //     wstream.end();
+    //     fs.createReadStream(tileInfo.filePath).pipe(tile);
+    //   });
     }).on('error', function(err) {
       tile.emit('error',err);
       _this.emit('error',err);
