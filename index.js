@@ -64,31 +64,28 @@ getTile = function(req,res) {
 			tile = argenmapTileCache.getTile(req.route.params);
 		break;
 	}
-
 	tile.on('error',function(err){
 		//aca tendria que ir un switch para disintos errores
-		res.error(err,408);
-	});
-	tile.on('ready',function(){
-		console.log('ready event');
-		res.writeHead(200,{
-			'Content-Type': 'image/png',
-			'ETag':'hola'
-		});
-		tile.pipe(res);
+		// res.error(err,408);
+		res.end();
 	});
 	tile.on('pipe',function(){
 		console.log('pipe event');
 	});
 	tile.on('end',function(){
 		console.log('end event');
+		// res.addTrailers({
+		// 	'Content-Type': 'image/png',
+		// 	'ETag':'hola'
+		// });
+		// res.end();
 	});
-	tile.on('close',function(){
-		console.log('close event');
-	});
-	tile.on('readable', function(){
-		console.log('readable');
-	});
+		res.writeHead(200,{
+			'Content-Type': 'image/png',
+			'ETag':'hola'
+		});
+		tile.pipe(res);
+		// console.log(res);
 }
 
 queryTile = function(req, res) {

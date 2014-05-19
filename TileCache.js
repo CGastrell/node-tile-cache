@@ -103,17 +103,16 @@ TileCache.prototype.getTile = function(params) {
   var _this = this;
   var expiration = this.options.ttl;
 
-  if(tileInfo.cached && tileInfo.fileStats.size > 0) {
+  if(tileInfo.cached && tileInfo.fileStats.size > 0 && 1 === 2) {
     this.emit("cache_hit", { type: 'CACHE_HIT', tile: tileInfo });
     var rstream = fs.createReadStream(tileInfo.filePath);
     rstream.on('error', function(err) {
-      tile.emit('error',err);
-      _this.emit('error',err);
+      var e = new Error('Read file error');
+      e.originalError = err;
+      tile.emit('error',e);
+      _this.emit('error',e);
     });
-    rstream.on('end', function(){
-      tile.emit('ready');
-      rstream.pipe(tile);
-    });
+    rstream.pipe(tile);
   }else{
     if(tileInfo.cached) {
       fs.unlinkSync(tileInfo.filePath);
@@ -127,26 +126,17 @@ TileCache.prototype.getTile = function(params) {
 
     var options = {
       host: "172.20.203.111",
-      port: 3128,
+      port: 31288,
       path: tileInfo.sourceUrl
     }
     var req = http.get(options, function(res){
-      res.pipe(wstream,{end: false});
-      res.on('end', function(){
-        wstream.end();
-        tile.emit('ready');
-        fs.createReadStream(tileInfo.filePath).pipe(tile);
-      });
-    // }).on('response',function(incoming){
-    //   console.log('response event');
-    //   incoming.pipe(wstream,{end: false});
-    //   incoming.on('end', function(){
-    //     wstream.end();
-    //     fs.createReadStream(tileInfo.filePath).pipe(tile);
-    //   });
+      res.pipe(tile);
+      res.pipe(wstream);
     }).on('error', function(err) {
-      tile.emit('error',err);
-      _this.emit('error',err);
+      var e = new Error('WMS Request Error');
+      e.originalError = err;
+      tile.emit('error',e);
+      _this.emit('error',e);
     }).on('socket', function(socket) {
       socket.setTimeout(_this.options.timeout);
       socket.on('timeout',function(){
