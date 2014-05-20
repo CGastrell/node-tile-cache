@@ -67,6 +67,8 @@ getTile = function(req,res) {
 	tile.on('error',function(err){
 		//aca tendria que ir un switch para disintos errores
 		// res.error(err,408);
+		// res.end("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAMAAAAoyzS7AAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAA1JREFUeNoBAgD9/wAAAAIAAVMrnDAAAAAASUVORK5CYII=");
+		// res.end("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAMAAAAoyzS7AAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAA1JREFUeNoBAgD9/wAAAAIAAVMrnDAAAAAASUVORK5CYII=");
 		res.end();
 	});
 	tile.on('pipe',function(){
@@ -74,18 +76,13 @@ getTile = function(req,res) {
 	});
 	tile.on('end',function(){
 		console.log('end event');
-		// res.addTrailers({
-		// 	'Content-Type': 'image/png',
-		// 	'ETag':'hola'
-		// });
-		// res.end();
 	});
-		res.writeHead(200,{
-			'Content-Type': 'image/png',
-			'ETag':'hola'
-		});
-		tile.pipe(res);
-		// console.log(res);
+
+	res.writeHead(200,{
+		'Content-Type': 'image/png',
+		'ETag':'hola'
+	});
+	tile.pipe(res);
 }
 
 queryTile = function(req, res) {
