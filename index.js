@@ -37,11 +37,11 @@ var osmTileCache = new tileCache({
 // Event Handlers
 argenmapTileCache.on('cache_hit',function(data){
 	console.log('HIT:');
-	console.log(data);
+	console.log(data.tile.request);
 });
 argenmapTileCache.on('cache_miss',function(data){
 	console.log('MISS:');
-	console.log(data);
+	console.log(data.tile.request);
 });
 argenmapTileCache.on('error',function(err){
 	console.log('ERROR: ');
@@ -66,17 +66,19 @@ getTile = function(req,res) {
 	}
 	tile.on('error',function(err){
 		//aca tendria que ir un switch para disintos errores
+		// deberia responder una imagen vacia o algo que indique el error
 		// res.error(err,408);
 		// res.end("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAMAAAAoyzS7AAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAA1JREFUeNoBAgD9/wAAAAIAAVMrnDAAAAAASUVORK5CYII=");
 		// res.end("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAMAAAAoyzS7AAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAA1JREFUeNoBAgD9/wAAAAIAAVMrnDAAAAAASUVORK5CYII=");
 		res.end();
 	});
-	tile.on('pipe',function(){
-		console.log('pipe event');
-	});
-	tile.on('end',function(){
-		console.log('end event');
-	});
+
+	// tile.on('pipe',function(){
+	// 	console.log('pipe event');
+	// });
+	// tile.on('end',function(){
+	// 	console.log('end event');
+	// });
 
 	res.writeHead(200,{
 		'Content-Type': 'image/png',

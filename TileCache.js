@@ -103,7 +103,7 @@ TileCache.prototype.getTile = function(params) {
   var _this = this;
   var expiration = this.options.ttl;
 
-  if(tileInfo.cached && tileInfo.fileStats.size > 0 && 1 === 2) {
+  if(tileInfo.cached && tileInfo.fileStats.size > 0) {
     this.emit("cache_hit", { type: 'CACHE_HIT', tile: tileInfo });
     var rstream = fs.createReadStream(tileInfo.filePath);
     rstream.on('error', function(err) {
@@ -126,7 +126,7 @@ TileCache.prototype.getTile = function(params) {
 
     var options = {
       host: "172.20.203.111",
-      port: 31288,
+      port: 3128,
       path: tileInfo.sourceUrl
     }
     var req = http.get(options, function(res){
@@ -140,6 +140,7 @@ TileCache.prototype.getTile = function(params) {
     }).on('socket', function(socket) {
       socket.setTimeout(_this.options.timeout);
       socket.on('timeout',function(){
+        //el req.abort va a disparar el error de aca arriba
         req.abort();
       });
     });
