@@ -18,11 +18,14 @@ function Tile(params) {
 util.inherits(Tile, require('stream'));
 Tile.prototype.write = function () {
   args = Array.prototype.slice.call(arguments, 0);
-  this.emit.apply(this, ['data'].concat(args))
+  this.emit.apply(this, ['data'].concat(args));
 };
 Tile.prototype.end = function () {
   args = Array.prototype.slice.call(arguments, 0);
-  this.emit.apply(this, ['end'].concat(args))
+  this.emit.apply(this, ['end'].concat(args));
+};
+Tile.prototype.buildSourceUri = function() {
+  return util.format("%s/%s/%s/%s.%s", this.capa, this.z, this.x, this.y, this.format);
 };
 
 function TileCache(options) {
@@ -47,45 +50,28 @@ TileCache.prototype.tileStats = function(tile) {
   var params = tile;
   var url = this.buildUrl(tile);
   var file = this._name(url);
-  var inCache = this.isCached(url);
+  var inCache = fs.existsSync(file);
+  var stats = inCache ? fs.statSync(file) : {};
   var r = {
     request: util.format("%s/%s/%s/%s.%s", params.capa, params.z, params.x, params.y, params.format),
     cached: inCache,
     sourceUrl: url,
     uri: this.buildUri(tile),
     filePath: file,
-    fileStats: inCache ? fs.statSync(file) : {}
+    fileSize: inCache ? stats.size : 0,
+    Etag: inCache ? this._hash(file + stats.mtime) : ''
   };
   return r;
 }
-TileCache.prototype.queryTile = function(params) {
-  
-  var url = this.buildUrl(params);
-  var file = this._name(url);
-  var inCache = this.isCached(url);
-  var r = {
-    request: util.format("%s/%s/%s/%s.%s", params.capa, params.z, params.x, params.y, params.format),
-    cached: inCache,
-    sourceUrl: url,
-    uri: this.buildUri(params),
-    filePath: file,
-    // etag: crypto.createHash('md5').update(str).digest('hex'),
-    fileStats: inCache ? fs.statSync(file) : {}
-  };
-  return r;
-};
-TileCache.prototype.buildUri = function(params) {
-  var vars = this.options.transform(params);
-  var tileURi = util.format("/%s/%s/%s/%s.%s", vars.capa, vars.z, vars.x, vars.y, vars.format);
-  return tileURi;
-};
+// TileCache.prototype.buildUri = function(params) {
+//   var vars = this.options.transform(params);
+//   var tileURi = util.format("%s/%s/%s/%s.%s", vars.capa, vars.z, vars.x, vars.y, vars.format);
+//   return tileURi;
+// };
 TileCache.prototype.buildUrl = function(params) {
   this.urlRotate = ++this.urlRotate % this.options.source.length;
   var tileURL = this.options.source[this.urlRotate] + this.buildUri(params);
   return tileURL;
-};
-TileCache.prototype.isCached = function(url) {
-  return fs.existsSync(this._name(url));
 };
 
 TileCache.prototype._hash = function(str) {
@@ -98,14 +84,14 @@ TileCache.prototype._name = function(key) {
 
 TileCache.prototype.getTile = function(params) {
   //
-  var tile = new Tile(this.options.transform(params));
-  var tileInfo = this.tileStats(tile);
+  var tile = new Tile(params);
+  tile.stats = this.tileStats(tile);
   var _this = this;
   var expiration = this.options.ttl;
 
-  if(tileInfo.cached && tileInfo.fileStats.size > 0) {
-    this.emit("cache_hit", { type: 'CACHE_HIT', tile: tileInfo });
-    var rstream = fs.createReadStream(tileInfo.filePath);
+  if(tile.stats.cached && tile.stats.fileSize > 0) {
+    this.emit("cache_hit", { type: 'CACHE_HIT', tile: tile.stats });
+    var rstream = fs.createReadStream(tile.stats.filePath);
     rstream.on('error', function(err) {
       var e = new Error('Read file error');
       e.originalError = err;
@@ -114,12 +100,12 @@ TileCache.prototype.getTile = function(params) {
     });
     rstream.pipe(tile);
   }else{
-    if(tileInfo.cached) {
-      fs.unlinkSync(tileInfo.filePath);
+    if(tile.stats.cached) {
+      fs.unlinkSync(tile.stats.filePath);
     }
-    this.emit("cache_miss", {type:'CACHE_MISS', tile: tileInfo });
+    this.emit("cache_miss", {type:'CACHE_MISS', tile: tile.stats });
 
-    var wstream = fs.createWriteStream(tileInfo.filePath);
+    var wstream = fs.createWriteStream(tile.stats.filePath);
     wstream.on('error', function(err) {
       _this.emit('error',err);
     });
@@ -127,7 +113,7 @@ TileCache.prototype.getTile = function(params) {
     var options = {
       host: "172.20.203.111",
       port: 3128,
-      path: tileInfo.sourceUrl
+      path: tile.stats.sourceUrl
     }
     var req = http.get(options, function(res){
       res.pipe(tile);
