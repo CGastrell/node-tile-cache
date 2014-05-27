@@ -14,6 +14,7 @@ function Tile(params) {
   this.z = params.z;
   this.format = params.format;
   this.stats = {};
+  this.data = {};
 }
 util.inherits(Tile, require('stream'));
 Tile.prototype.write = function () {
@@ -24,8 +25,14 @@ Tile.prototype.end = function () {
   args = Array.prototype.slice.call(arguments, 0);
   this.emit.apply(this, ['end'].concat(args));
 };
-Tile.prototype.buildSourceUri = function() {
-  return util.format("%s/%s/%s/%s.%s", this.capa, this.z, this.x, this.y, this.format);
+Tile.prototype.getTileUrl = function() {
+  var r = {};
+  for (var x in tileParams) {
+    r[x] = tileParams[x]
+  };
+  r.capa += '@EPSG:3857@png8';
+  r.format = 'png8';
+  return util.format("%s/%s/%s/%s.%s", r.capa, r.z, r.x, r.y, r.format);
 };
 
 function TileCache(options) {
@@ -63,14 +70,15 @@ TileCache.prototype.tileStats = function(tile) {
   };
   return r;
 }
-// TileCache.prototype.buildUri = function(params) {
-//   var vars = this.options.transform(params);
-//   var tileURi = util.format("%s/%s/%s/%s.%s", vars.capa, vars.z, vars.x, vars.y, vars.format);
-//   return tileURi;
-// };
+TileCache.prototype.buildUri = function(params) {
+  // var vars = this.options.transform(params);
+  var vars = params;
+  var tileURi = util.format("%s/%s/%s/%s.%s", vars.capa, vars.z, vars.x, vars.y, vars.format);
+  return tileURi;
+};
 TileCache.prototype.buildUrl = function(params) {
   this.urlRotate = ++this.urlRotate % this.options.source.length;
-  var tileURL = this.options.source[this.urlRotate] + this.buildUri(params);
+  var tileURL = this.options.source[this.urlRotate] + "/" + this.buildUri(params);
   return tileURL;
 };
 
@@ -83,8 +91,7 @@ TileCache.prototype._name = function(key) {
 };
 
 TileCache.prototype.getTile = function(params) {
-  //
-  var tile = new Tile(params);
+  var tile = new Tile(this.options.transform(params));
   tile.stats = this.tileStats(tile);
   var _this = this;
   var expiration = this.options.ttl;

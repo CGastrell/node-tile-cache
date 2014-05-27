@@ -1,6 +1,6 @@
 var jaws = require('jaws');
 var fc = require('./FileCache');
-var tmsProxy = require('./TMSProxy');
+var util = require('util');
 var tileCache = require('./TileCache');
 var app = jaws();
 var port = process.env.PORT || 5000;
@@ -27,6 +27,30 @@ log.on('error', function (err, stream) {
     console.log(stream);
 });
 
+
+var types = {
+	"osm": {
+		source: [
+			'http://a.tile.openstreetmaps.org',
+			'http://b.tile.openstreetmaps.org',
+			'http://c.tile.openstreetmaps.org'
+		],
+		getTileUrl: function() {
+			var r = {};
+			for (var x in tileParams) { //extend barato para no modificar el param original
+				r[x] = tileParams[x]
+			};
+			
+			// Invert tile y origin from top to bottom of map
+			var ymax = 1 << r.z;
+			r.y = ymax - r.y - 1;
+			r.capa = '';
+			// console.log(r);
+			return r;
+		}
+	}
+};
+
 var argenmapTileCache = new tileCache({
 	transform: function(tileParams) {
 		var r = {};
@@ -50,6 +74,7 @@ var osmTileCache = new tileCache({
 		var ymax = 1 << r.z;
 		r.y = ymax - r.y - 1;
 		r.capa = '';
+		// console.log(r);
 		return r;
 	},
 	timeout: 10000
@@ -59,12 +84,12 @@ var osmTileCache = new tileCache({
 argenmapTileCache.on('cache_hit',function(data){
 	// log.info(data.tile,'CACHE HIT');
 	console.log('HIT:');
-	console.log(data.tile.request);
+	console.log(data.tile);
 });
 argenmapTileCache.on('cache_miss',function(data){
 	// log.info(data.tile,'CACHE MISS');
 	console.log('MISS:');
-	console.log(data.tile.request);
+	console.log(data.tile);
 });
 osmTileCache.on('cache_hit',function(data){
 	// log.info(data.tile,'CACHE HIT');
@@ -92,7 +117,7 @@ osmTileCache.on('error',function(err){
 getTile = function(req,res) {
 	var time = process.hrtime();
 	var tile;
-	console.log(req.route.params.capa);
+	console.log(req.url);
 	switch(req.route.params.capa) {
 		case 'osm':
 			tile = osmTileCache.getTile(req.route.params);
