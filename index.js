@@ -28,28 +28,33 @@ log.on('error', function (err, stream) {
 });
 
 
-var types = {
+var tiles = {
+	"capabaseargenmap": {},
 	"osm": {
 		source: [
 			'http://a.tile.openstreetmaps.org',
 			'http://b.tile.openstreetmaps.org',
 			'http://c.tile.openstreetmaps.org'
 		],
+		timeout: 10000,
 		getTileUrl: function() {
 			var r = {};
-			for (var x in tileParams) { //extend barato para no modificar el param original
-				r[x] = tileParams[x]
-			};
+			r.capa = this.capa;
+			r.z = this.z;
+			r.x = this.x;
+			r.y = this.y;
+			r.format = this.format;
 			
 			// Invert tile y origin from top to bottom of map
 			var ymax = 1 << r.z;
 			r.y = ymax - r.y - 1;
 			r.capa = '';
-			// console.log(r);
-			return r;
+			return util.format("/%s/%s/%s.%s", r.z, r.x, r.y, r.format);
 		}
 	}
 };
+
+var grandTileCache = new tileCache({tileTypes:tiles});
 
 var argenmapTileCache = new tileCache({
 	transform: function(tileParams) {
@@ -78,7 +83,7 @@ var osmTileCache = new tileCache({
 		return r;
 	},
 	timeout: 10000
-})
+});
 
 // Event Handlers
 argenmapTileCache.on('cache_hit',function(data){
@@ -126,6 +131,7 @@ getTile = function(req,res) {
 			tile = argenmapTileCache.getTile(req.route.params);
 		break;
 	}
+	grandTileCache.getTile(req.route.params,req.route.params.capa);
 	tile.on('error',function(err){
 		//aca tendria que ir un switch para disintos errores
 		// deberia responder una imagen vacia o algo que indique el error

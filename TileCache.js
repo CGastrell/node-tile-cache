@@ -8,11 +8,16 @@ var fs = require('fs');
 function Tile(params) {
   this.readable = true;
   this.writable = true;
+
+  this.source = ['http://mapa.ign.gob.ar/geoserver/gwc/service/tms/1.0.0'];
   this.capa = params.capa;
   this.x = params.x;
   this.y = params.y;
   this.z = params.z;
   this.format = params.format;
+  this.type = "capabaseargenmap";
+
+  this.timeout = 5000;
   this.stats = {};
   this.data = {};
 }
@@ -27,18 +32,19 @@ Tile.prototype.end = function () {
 };
 Tile.prototype.getTileUrl = function() {
   var r = {};
-  for (var x in tileParams) {
-    r[x] = tileParams[x]
-  };
-  r.capa += '@EPSG:3857@png8';
+  r.capa = '@EPSG:3857@png8' + this.capa;
+  r.z = this.z;
+  r.x = this.x;
+  r.y = this.y;
   r.format = 'png8';
-  return util.format("%s/%s/%s/%s.%s", r.capa, r.z, r.x, r.y, r.format);
+  return util.format("/%s/%s/%s/%s.%s", r.capa, r.z, r.x, r.y, r.format);
 };
 
 function TileCache(options) {
   var self = this;
   this.urlRotate = 0;
   self.options = {
+    tileTypes: {},
     source: ['http://mapa.ign.gob.ar/geoserver/gwc/service/tms/1.0.0'],
     dir: "./cache",
     ttl: 1024,
@@ -50,6 +56,16 @@ function TileCache(options) {
   for (var x in options) {
     self.options[x] = options[x]
   };
+
+  if(!Object.keys(self.options.tileTypes).length) {
+    console.log("tileTypes is empty");
+    // throw new Error("tileTypes is empty");
+  }else{
+    //agrego un rotator para las url de source
+    for(var i in self.options.tileTypes) {
+      self.options.tileTypes[i].rotator = 0;
+    }
+  }
 }
 
 util.inherits(TileCache, events.EventEmitter);
@@ -76,6 +92,10 @@ TileCache.prototype.buildUri = function(params) {
   var tileURi = util.format("%s/%s/%s/%s.%s", vars.capa, vars.z, vars.x, vars.y, vars.format);
   return tileURi;
 };
+TileCache.prototype.getNextSource = function(tileType) {
+  this.options.tileTypes[tileType].rotator = ++this.options.tileTypes[tileType].rotator % this.options.tileTypes[tileType].source.length;
+  return this.options.tileTypes[tileType].source[this.options.tileTypes[tileType].rotator];
+}
 TileCache.prototype.buildUrl = function(params) {
   this.urlRotate = ++this.urlRotate % this.options.source.length;
   var tileURL = this.options.source[this.urlRotate] + "/" + this.buildUri(params);
@@ -90,7 +110,18 @@ TileCache.prototype._name = function(key) {
   return this.options.dir + "/" + this._hash(key);
 };
 
-TileCache.prototype.getTile = function(params) {
+TileCache.prototype.getTile = function(params, tileType) {
+  var tile2 = new Tile(params);
+  if(this.options.tileTypes[tileType]) {
+    var tt = this.options.tileTypes[tileType];
+    for(var o in tt) {
+        tile2[o] = tt[o];
+    }
+    console.log(this.getNextSource(tileType));
+    console.log(tile2.getTileUrl());
+    return;
+  }
+
   var tile = new Tile(this.options.transform(params));
   tile.stats = this.tileStats(tile);
   var _this = this;
