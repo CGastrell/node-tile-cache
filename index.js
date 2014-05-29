@@ -27,6 +27,7 @@ log.on('error', function (err, stream) {
     console.log(stream);
 });
 
+var timer;
 
 var tiles = {
 	"capabaseargenmap": {},
@@ -54,84 +55,40 @@ var tiles = {
 	}
 };
 
-var grandTileCache = new tileCache({tileTypes:tiles});
+var grandTileCache = new tileCache({tileTypes:tiles,defaultTile:'256.png'});
 
-var argenmapTileCache = new tileCache({
-	transform: function(tileParams) {
-		var r = {};
-		for (var x in tileParams) {
-			r[x] = tileParams[x]
-		};
-		r.capa += '@EPSG:3857@png8';
-		r.format = 'png8';
-		return r;
-	}
-});
-var osmTileCache = new tileCache({
-	source: ['http://a.tile.openstreetmaps.org','http://b.tile.openstreetmaps.org','http://c.tile.openstreetmaps.org'],
-	transform: function(tileParams) {
-		var r = {};
-		for (var x in tileParams) { //extend barato para no modificar el param original
-			r[x] = tileParams[x]
-		};
-		
-		// Invert tile y origin from top to bottom of map
-		var ymax = 1 << r.z;
-		r.y = ymax - r.y - 1;
-		r.capa = '';
-		// console.log(r);
-		return r;
-	},
-	timeout: 10000
-});
 
 // Event Handlers
-argenmapTileCache.on('cache_hit',function(data){
+grandTileCache.on('cache_hit',function(data){
 	// log.info(data.tile,'CACHE HIT');
-	console.log('HIT:');
-	console.log(data.tile);
+	console.log('CACHE HIT: ' + data.tile.url);
+	var lap = process.hrtime(timer);
+	console.log('IN: ' + process.hrtime(timer)[0] + 1 / 1000000000 * lap[1]);
 });
-argenmapTileCache.on('cache_miss',function(data){
+grandTileCache.on('cache_miss',function(data){
 	// log.info(data.tile,'CACHE MISS');
-	console.log('MISS:');
-	console.log(data.tile);
-});
-osmTileCache.on('cache_hit',function(data){
-	// log.info(data.tile,'CACHE HIT');
-	console.log('HIT:');
-	console.log(data.tile);
-});
-osmTileCache.on('cache_miss',function(data){
-	// log.info(data.tile,'CACHE MISS');
-	console.log('MISS:');
-	console.log(data.tile);
+	console.log('CACHE MISS: ');
+	console.log(data.tile.url);
+	var lap = process.hrtime(timer);
+	console.log('IN: ' + process.hrtime(timer)[0] + 1 / 1000000000 * lap[1]);
 });
 
-argenmapTileCache.on('error',function(err){
+
+grandTileCache.on('error',function(err){
 	// log.error(err);
 	console.log('ERROR: ');
 	console.log(err);
+	var lap = process.hrtime(timer);
+	console.log(process.hrtime(timer)[0] + 1 / 1000000000 * lap[1]);
 });
-osmTileCache.on('error',function(err){
-	// log.error(err);
-	console.log('ERROR: ');
-	console.log(err);
-});
+
 
 // Request Handlers
 getTile = function(req,res) {
-	var time = process.hrtime();
-	var tile;
-	console.log(req.url);
-	switch(req.route.params.capa) {
-		case 'osm':
-			tile = osmTileCache.getTile(req.route.params);
-		break;
-		default:
-			tile = argenmapTileCache.getTile(req.route.params);
-		break;
-	}
-	grandTileCache.getTile(req.route.params,req.route.params.capa);
+	console.log('REQUEST: ' + req.url);
+	timer = process.hrtime();
+	var tile = grandTileCache.getTile(req.route.params,req.route.params.capa);
+
 	tile.on('error',function(err){
 		//aca tendria que ir un switch para disintos errores
 		// deberia responder una imagen vacia o algo que indique el error
@@ -141,12 +98,6 @@ getTile = function(req,res) {
 		res.end();
 	});
 
-	// tile.on('pipe',function(){
-	// 	console.log('pipe event');
-	// });
-	// tile.on('end',function(){
-	// 	console.log('end event');
-	// });
 	var head = {
 		'Content-Type': 'image/png'
 	}
@@ -156,6 +107,11 @@ getTile = function(req,res) {
 		head.Etag = tile.stats.Etag;
 	}
 	res.writeHead(200,head);
+	res.on('finish',function(){
+		console.log('Done:');
+		var lap = process.hrtime(timer);
+		console.log(process.hrtime(timer)[0] + 1 / 1000000000 * lap[1]);
+	});
 	tile.pipe(res);
 }
 
@@ -181,7 +137,7 @@ app.route('/tms/:capa/:z/:x/:y.:format/status.json', queryTile).nocache();
 app.route('/cache/status.json', cacheStats).nocache();
 
 app.httpServer.listen(port, function () {
-	log.info('NodeTileCache started at port '+port);
+	console.log('NodeTileCache started at port '+port);
 	setInterval(function () {
 	  log.info('Flushing data...');
 	  app.flush();
