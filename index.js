@@ -30,8 +30,19 @@ log.on('error', function (err, stream) {
 var timer;
 
 var tiles = {
-	"capabaseargenmap": {},
+	"capabaseargenmap": {
+		provider: {
+			domain: 'ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
+			urlTemplate: 'http://{s}.ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
+			subdomains: ['mapa']
+		}
+	},
 	"osm": {
+		provider: {
+			domain: 'tile.openstreetmaps.org',
+			urlTemplate: 'http://{s}.tile.openstreetmaps.org',
+			subdomains: 'a,b,c'.split(',')
+		},
 		source: [
 			'http://a.tile.openstreetmaps.org',
 			'http://b.tile.openstreetmaps.org',
@@ -72,7 +83,6 @@ grandTileCache.on('cache_miss',function(data){
 	var lap = process.hrtime(timer);
 	console.log('IN: ' + process.hrtime(timer)[0] + 1 / 1000000000 * lap[1]);
 });
-
 
 grandTileCache.on('error',function(err){
 	// log.error(err);
