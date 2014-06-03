@@ -61,7 +61,7 @@ var tiles = {
 			var ymax = 1 << r.z;
 			r.y = ymax - r.y - 1;
 			r.capa = '';
-			return util.format("/%s/%s/%s.%s", r.z, r.x, r.y, r.format);
+			return util.format("%s/%s/%s/%s.%s", this.provider.urlTemplate, r.z, r.x, r.y, r.format);
 		}
 	}
 };

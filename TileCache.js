@@ -16,6 +16,12 @@ function Tile(params) {
   this.z = params.z;
   this.format = params.format;
   this.type = "capabaseargenmap";
+  this.provider = {
+    domain: 'ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
+    urlTemplate: 'http://{s}.ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
+    subdomains: ['mapa']
+  }
+
 
   this.ttl = 1024;
   this.timeout = 5000;
@@ -38,7 +44,8 @@ Tile.prototype.getTileUrl = function() {
   r.x = this.x;
   r.y = this.y;
   r.format = 'png8';
-  return util.format("/%s/%s/%s/%s.%s", r.capa, r.z, r.x, r.y, r.format);
+  // return util.format("/%s/%s/%s/%s.%s", r.capa, r.z, r.x, r.y, r.format);
+  return util.format("%s/%s/%s/%s/%s.%s", this.provider.urlTemplate, r.capa, r.z, r.x, r.y, r.format);
 };
 
 function TileCache(options) {
@@ -69,21 +76,28 @@ function TileCache(options) {
 util.inherits(TileCache, events.EventEmitter);
 TileCache.prototype.tileStats = function(tile) {
   var tileUriPath = tile.getTileUrl();
-  var sourceUrl = this.getNextSource(tile);
-  var file = this._name(sourceUrl + tileUriPath);
+  // var sourceUrl = this.getNextSource(tile);
+  var file = this._name(tileUriPath);
+  // var file = this._name(sourceUrl + tileUriPath);
   var inCache = fs.existsSync(file);
   var stats = inCache ? fs.statSync(file) : {};
   var r = {
     //request es el request original que llego al server, no se si va aca
     request: util.format("%s/%s/%s/%s.%s", tile.capa, tile.z, tile.x, tile.y, tile.format),
     cached: inCache,
-    url: sourceUrl + tileUriPath,
-    uri: tileUriPath,
+    url: tileUriPath,
+    // url: sourceUrl + tileUriPath,
+    // uri: tileUriPath,
+    templateUrl: tileUriPath,
     filePath: file,
     fileSize: inCache ? stats.size : 0,
     Etag: inCache ? this._hash(file + stats.mtime) : ''
   }
   return r;
+}
+TileCache.prototype.getUrl = function(tile) {
+  this.options.tileTypes[tile.type].rotator = ++this.options.tileTypes[tile.type].rotator % tile.provider.subdomains.length;
+  return tile.getTileUrl().replace("{s}", tile.provider.subdomains[this.options.tileTypes[tile.type].rotator]);
 }
 
 TileCache.prototype.getNextSource = function(tile) {
@@ -148,7 +162,8 @@ TileCache.prototype.getTile = function(params, tileType) {
     var options = {
       host: "172.20.203.111",
       port: 3128,
-      path: tile.stats.url
+      path: this.getUrl(tile)
+      // path: tile.stats.url
     }
     var req = http.get(options, function(res){
       res.pipe(tile);
