@@ -2,9 +2,10 @@ var jaws = require('jaws');
 var fc = require('./FileCache');
 var util = require('util');
 var tileCache = require('./TileCache');
+var logger = require('bunyan');
+var http = require('http');
 var app = jaws();
 var port = process.env.PORT || 5000;
-var logger = require('bunyan');
 var log = logger.createLogger({
 	name:'NodeTileCache',
 	streams: [
@@ -72,6 +73,9 @@ var grandTileCache = new tileCache({tileTypes:tiles,defaultTile:'256.png'});
 // Event Handlers
 grandTileCache.on('cache_hit',function(data){
 	// log.info(data.tile,'CACHE HIT');
+	// http.get('http://172.20.202.117:8080/tracking_pixel.gif?_=' + Math.random())
+	// .on('error',function(err){console.log(err)});
+	
 	console.log('CACHE HIT: ' + data.tile.url);
 	var lap = process.hrtime(timer);
 	console.log('IN: ' + process.hrtime(timer)[0] + 1 / 1000000000 * lap[1]);
