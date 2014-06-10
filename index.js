@@ -1,13 +1,47 @@
 var jaws = require('jaws');
-var fc = require('./FileCache');
+// var fc = require('./FileCache');
 var util = require('util');
 var tileCache = require('./TileCache');
 var logger = require('bunyan');
 var http = require('http');
 var app = jaws();
 var port = process.env.PORT || 5000;
+
+function tileSerializer(tile) {
+	if (!tile)
+        return tile;
+	return {
+		x: tile.x,
+		y: tile.y,
+		z: tile.z,
+		capa: tile.capa,
+		cached: tile.stats.cached,
+		url: tile.stats.url,
+		read: tile.debugData.tileRead[0] * 1e9 + tile.debugData.tileRead[1],
+		serve: tile.debugData.tileServed[0] * 1e9 + tile.debugData.tileServed[1]
+	}
+};
+function reqSerializer(req) {
+    if (!req || !req.connection)
+        return req;
+    return {
+        url: req.url,
+        host: req.headers['host'],
+        remoteAddress: req.connection.remoteAddress
+    };
+    // Trailers: Skipping for speed. If you need trailers in your app, then
+    // make a custom serializer.
+    //if (Object.keys(trailers).length > 0) {
+    //  obj.trailers = req.trailers;
+    //}
+};
 var log = logger.createLogger({
 	name:'NodeTileCache',
+	serializers: {
+		req: reqSerializer,
+		tile: tileSerializer,
+		err: logger.stdSerializers.err
+	},
 	streams: [
 		{
 			type: 'rotating-file',
@@ -28,14 +62,24 @@ log.on('error', function (err, stream) {
     console.log(stream);
 });
 
-var timer;
+function nanoToSeconds(hrtime) {
+	return (hrtime[0] * 1e9 + hrtime[1]) / 1e9;
+}
+
 
 var tiles = {
 	"capabaseargenmap": {
 		provider: {
 			domain: 'ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
 			urlTemplate: 'http://{s}.ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
-			subdomains: ['mapa']
+			subdomains: ['wms']
+		}
+	},
+	"capabasesigign": {
+		provider: {
+			domain: 'ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
+			urlTemplate: 'http://{s}.ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
+			subdomains: ['wms']
 		}
 	},
 	"osm": {
@@ -44,11 +88,6 @@ var tiles = {
 			urlTemplate: 'http://{s}.tile.openstreetmaps.org',
 			subdomains: 'a,b,c'.split(',')
 		},
-		source: [
-			'http://a.tile.openstreetmaps.org',
-			'http://b.tile.openstreetmaps.org',
-			'http://c.tile.openstreetmaps.org'
-		],
 		timeout: 10000,
 		getTileUrl: function() {
 			var r = {};
@@ -73,37 +112,49 @@ var grandTileCache = new tileCache({tileTypes:tiles,defaultTile:'256.png'});
 // Event Handlers
 grandTileCache.on('cache_hit',function(data){
 	// log.info(data.tile,'CACHE HIT');
-	// http.get('http://172.20.202.117:8080/tracking_pixel.gif?_=' + Math.random())
-	// .on('error',function(err){console.log(err)});
-	
-	console.log('CACHE HIT: ' + data.tile.url);
-	var lap = process.hrtime(timer);
-	console.log('IN: ' + process.hrtime(timer)[0] + 1 / 1000000000 * lap[1]);
-});
-grandTileCache.on('cache_miss',function(data){
+	console.log('CACHE HIT: ' + data.tile.stats.url);
+	// var lap = process.hrtime(data.tile.debugData.tileRequested);
+	// console.log(lap[0] + 1 / 1000000000 * lap[1]);
+}).on('cache_miss',function(data){
 	// log.info(data.tile,'CACHE MISS');
-	console.log('CACHE MISS: ');
-	console.log(data.tile.url);
-	var lap = process.hrtime(timer);
-	console.log('IN: ' + process.hrtime(timer)[0] + 1 / 1000000000 * lap[1]);
-});
-
-grandTileCache.on('error',function(err){
-	// log.error(err);
+	console.log('CACHE MISS: ' + data.tile.stats.url);
+	// var lap = process.hrtime(data.tile.debugData.tileRequested);
+	// console.log(lap[0] + 1 / 1000000000 * lap[1]);
+}).on('tile_served',function(data){
+	// Object.keys(data.tile.debugData).forEach(function(v){
+	// 	console.log(v + ': '+ nanoToSeconds(data.tile.debugData[v]));
+	// });
+	// console.log(data.tile.debugData);
+	console.log('TILE SERVED: ' + data.tile.stats.filePath);
+	log.info({req:data.tile.requestData, tile:data.tile},'TILE SERVED');
+}).on('error',function(err, tile){
+	log.error(err);
 	console.log('ERROR: ');
 	console.log(err);
-	var lap = process.hrtime(timer);
-	console.log(process.hrtime(timer)[0] + 1 / 1000000000 * lap[1]);
+	// var lap = process.hrtime(tile.debugData.tileRequested);
+	// console.log('IN: ' + nanoToSeconds(lap));
 });
 
 
 // Request Handlers
 getTile = function(req,res) {
 	console.log('REQUEST: ' + req.url);
-	timer = process.hrtime();
-	var tile = grandTileCache.getTile(req.route.params,req.route.params.capa);
+	req.debugData = {
+		tileRequested: process.hrtime(), //cuando recibo el request, absoluto, ns desde que esta corriendo el process
+		tileRead: null, //cuando termino de recibir el tile (hit -> disk io, miss -> response)
+		tileServed: null //cuando termino de enviar al cliente
+	};
+	// req.requestData = {
+	// 	host: req.headers["host"],
+	// 	client: req.connection.remoteAddress,
+	// 	referer: req.headers["referer"],
+	// 	"x-forwarded-for": req.headers["x-forwarded-for"]
+	// };
+	var tile = grandTileCache.getTile(req);
 
-	tile.on('error',function(err){
+	tile.on('error',function(err, tile){
+		console.log('TILE ERROR:');
+		console.log(err);
 		//aca tendria que ir un switch para disintos errores
 		// deberia responder una imagen vacia o algo que indique el error
 		// res.error(err,408);
@@ -122,9 +173,9 @@ getTile = function(req,res) {
 	}
 	res.writeHead(200,head);
 	res.on('finish',function(){
-		console.log('Done:');
-		var lap = process.hrtime(timer);
-		console.log(process.hrtime(timer)[0] + 1 / 1000000000 * lap[1]);
+		tile.debugData.tileServed = process.hrtime(tile.debugData.tileRequested);
+		console.log('SERVED IN: '+nanoToSeconds(tile.debugData.tileServed));
+		grandTileCache.emit('tile_served',{type:'tile_served',tile:tile});
 	});
 	tile.pipe(res);
 }

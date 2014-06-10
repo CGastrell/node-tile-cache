@@ -9,7 +9,6 @@ function Tile(params) {
   this.readable = true;
   this.writable = true;
 
-  this.source = ['http://mapa.ign.gob.ar/geoserver/gwc/service/tms/1.0.0'];
   this.capa = params.capa;
   this.x = params.x;
   this.y = params.y;
@@ -21,7 +20,6 @@ function Tile(params) {
     urlTemplate: 'http://{s}.ign.gob.ar/geoserver/gwc/service/tms/1.0.0',
     subdomains: ['mapa']
   }
-
 
   this.ttl = 1024;
   this.timeout = 5000;
@@ -63,7 +61,6 @@ function TileCache(options) {
   }
 
   if(!Object.keys(self.options.tileTypes).length) {
-    // console.log("tileTypes is empty");
     throw new Error("tileTypes is empty");
   }else{
     //agrego un rotator para las url de source
@@ -92,7 +89,7 @@ TileCache.prototype.tileStats = function(tile) {
     filePath: file,
     fileSize: inCache ? stats.size : 0,
     Etag: inCache ? this._hash(file + stats.mtime) : ''
-  }
+  };
   return r;
 }
 TileCache.prototype.getUrl = function(tile) {
@@ -100,15 +97,10 @@ TileCache.prototype.getUrl = function(tile) {
   return tile.getTileUrl().replace("{s}", tile.provider.subdomains[this.options.tileTypes[tile.type].rotator]);
 }
 
-TileCache.prototype.getNextSource = function(tile) {
-  //esto tiene una falla con servidores donde el host es variable
-  //a.tile.openstreetmap.org/4/5/6.png
-  //es el mismo que
-  //b.tile.openstreetmap.org/4/5/6.png y c.tile.openstreetmap.org/4/5/6.png
-  //sin embargo aca voy a cachear los 3 como diferentes...
-  this.options.tileTypes[tile.type].rotator = ++this.options.tileTypes[tile.type].rotator % tile.source.length;
-  return tile.source[this.options.tileTypes[tile.type].rotator];
-};
+// TileCache.prototype.getNextSource = function(tile) {
+//   this.options.tileTypes[tile.type].rotator = ++this.options.tileTypes[tile.type].rotator % tile.source.length;
+//   return tile.source[this.options.tileTypes[tile.type].rotator];
+// };
 
 TileCache.prototype._hash = function(str) {
   return crypto.createHash('md5').update(str).digest('hex');
@@ -118,10 +110,16 @@ TileCache.prototype._name = function(key) {
   return this.options.dir + "/" + this._hash(key);
 };
 
-TileCache.prototype.getTile = function(params, tileType) {
+TileCache.prototype.getTile = function(req) {
+  //aca tiene que llegar el req, y de aca separamos
+  var params = req.route.params;
+  var tileType = req.route.params.capa;
   var _this = this;
   var rstream;
   var tile = new Tile(params);
+  tile.requestData = req;
+  tile.debugData = req.debugData;
+
   if(this.options.tileTypes[tileType] && tileType) {
     //"extiendo" el tile segun el tipo (osm, argenmap, etc)
     var tt = this.options.tileTypes[tileType];
@@ -131,53 +129,60 @@ TileCache.prototype.getTile = function(params, tileType) {
     tile.stats = this.tileStats(tile);
   }else{
     //sino tengo el tipo de tile devuelvo el default
-    fs.createReadStream(this.options.defaultTile).pipe(tile);
+    this.emit("error", new Error("no tileType detected"), tile);
+    fs.createReadStream(this.options.defaultTile)
+      .on('end', function(){
+        tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
+    }).pipe(tile);
     return tile;
   }
 
   //chequeo si esta cacheado
   if(tile.stats.cached && tile.stats.fileSize > 0) {
 
-    this.emit("cache_hit", { type: 'CACHE_HIT', tile: tile.stats });
+    this.emit("cache_hit", { type: 'CACHE_HIT', tile: tile });
 
-    rstream = fs.createReadStream(tile.stats.filePath);
-    rstream.on('error', function(err) {
-      var e = new Error('Read file error');
-      e.originalError = err;
-      tile.emit('error',e);
-      _this.emit('error',e);
-    });
-    rstream.pipe(tile);
+    rstream = fs.createReadStream(tile.stats.filePath)
+      .on('error', function(err) {
+        var e = new Error('Read file error');
+        e.originalError = err;
+        tile.emit('error', e, tile);
+        _this.emit('error', e, tile);
+    }).on('end', function(){
+        tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
+    }).pipe(tile);
   }else{
     if(tile.stats.cached) {
       fs.unlinkSync(tile.stats.filePath);
     }
-    this.emit("cache_miss", {type:'CACHE_MISS', tile: tile.stats });
+    this.emit("cache_miss", {type:'CACHE_MISS', tile: tile });
 
-    var wstream = fs.createWriteStream(tile.stats.filePath);
-    wstream.on('error', function(err) {
-      _this.emit('error',err);
+    var wstream = fs.createWriteStream(tile.stats.filePath)
+      .on('error', function(err) {
+        _this.emit('error',err, tile);
     });
 
     var options = {
       host: "172.20.203.111",
       port: 3128,
       path: this.getUrl(tile)
-      // path: tile.stats.url
     }
-    var req = http.get(options, function(res){
+    var req2 = http.get(options, function(res){
+    // var req2 = http.get(this.getUrl(tile), function(res){
+      tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
       res.pipe(tile);
       res.pipe(wstream);
     }).on('error', function(err) {
-      var e = new Error('WMS Request Error');
+      var e = new Error('Tile Request Error');
       e.originalError = err;
-      tile.emit('error',e);
-      _this.emit('error',e);
+      tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
+      tile.emit('error', e, tile);
+      _this.emit('error', e, tile);
     }).on('socket', function(socket) {
       socket.setTimeout(tile.timeout);
       socket.on('timeout',function(){
         //el req.abort va a disparar el error de aca arriba
-        req.abort();
+        req2.abort();
       });
     });
 
