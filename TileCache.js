@@ -162,13 +162,13 @@ TileCache.prototype.getTile = function(req) {
         _this.emit('error',err, tile);
     });
 
-    var options = {
-      host: "172.20.203.111",
-      port: 3128,
-      path: this.getUrl(tile)
-    }
-    var req2 = http.get(options, function(res){
-    // var req2 = http.get(this.getUrl(tile), function(res){
+    // var options = {
+    //   host: "172.20.203.111",
+    //   port: 3128,
+    //   path: this.getUrl(tile)
+    // }
+    // var req2 = http.get(options, function(res){
+    var req2 = http.get(this.getUrl(tile), function(res){
       tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
       res.pipe(tile);
       res.pipe(wstream);
