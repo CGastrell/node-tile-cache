@@ -164,7 +164,8 @@ getTile = function(req,res) {
 	});
 
 	var head = {
-		'Content-Type': 'image/png'
+		'Content-Type': 'image/png',
+		'Cache-Control': 'public,max-age=7776000'//90 dias
 	}
 	//la primera vez que devuelva un tile no puedo sacar el Etag
 	//ya que no tengo el file y por ende el mtime
