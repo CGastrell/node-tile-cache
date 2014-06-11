@@ -170,8 +170,10 @@ getTile = function(req,res) {
 	//ya que no tengo el file y por ende el mtime
 	if(tile.stats.cached) {
 		head.Etag = tile.stats.Etag;
+		res.writeHead(304,head);
+	}else{
+		res.writeHead(200,head);
 	}
-	res.writeHead(200,head);
 	res.on('finish',function(){
 		tile.debugData.tileServed = process.hrtime(tile.debugData.tileRequested);
 		console.log('SERVED IN: '+nanoToSeconds(tile.debugData.tileServed));
