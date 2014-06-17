@@ -198,6 +198,7 @@ cacheStats = function(req, res) {
 	res.json(cache.getStats());
 }
 
+app.route('/tms/1.0.0/:capa/:z/:x/:y.:format', getTile).nocache();
 app.route('/tms/:capa/:z/:x/:y.:format', getTile).nocache();
 // app.route('/tms/osm/:z/:y/:x.:format', getTileDeOsm).nocache();
 app.route('/tms/:capa/:z/:x/:y.:format/status.json', queryTile).nocache();
