@@ -126,9 +126,9 @@ grandTileCache.on('cache_hit',function(data){
 	// });
 	// console.log(data.tile.debugData);
 	console.log('TILE SERVED: ' + data.tile.stats.filePath);
-	log.info({req:data.tile.requestData, tile:data.tile},'TILE SERVED');
+	// log.info({req:data.tile.requestData, tile:data.tile},'TILE SERVED');
 }).on('error',function(err, tile){
-	log.error(err);
+	// log.error(err);
 	console.log('ERROR: ');
 	console.log(err);
 	// var lap = process.hrtime(tile.debugData.tileRequested);
@@ -207,7 +207,7 @@ app.route('/cache/status.json', cacheStats).nocache();
 app.httpServer.listen(port, function () {
 	console.log('NodeTileCache started at port '+port);
 	setInterval(function () {
-	  log.info('Flushing data...');
+	  console.log('Flushing data...');
 	  app.flush();
 	},1000 * 60 * 60);
 });
