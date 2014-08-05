@@ -129,7 +129,9 @@ TileCache.prototype.getTile = function(req) {
     tile.stats = this.tileStats(tile);
   }else{
     //sino tengo el tipo de tile devuelvo el default
-    this.emit("error", new Error("no tileType detected"), tile);
+    var err = new Error("no tileType detected");
+    err.tile = tile;
+    this.emit("error", err);
     fs.createReadStream(this.options.defaultTile)
       .on('end', function(){
         tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
@@ -162,22 +164,23 @@ TileCache.prototype.getTile = function(req) {
         _this.emit('error',err, tile);
     });
 
-    // var options = {
-    //   host: "172.20.203.111",
-    //   port: 3128,
-    //   path: this.getUrl(tile)
-    // }
-    // var req2 = http.get(options, function(res){
-    var req2 = http.get(this.getUrl(tile), function(res){
+    var options = {
+      host: "172.20.203.111",
+      port: 3128,
+      path: this.getUrl(tile)
+    }
+    var req2 = http.get(options, function(res){
+    // var req2 = http.get(this.getUrl(tile), function(res){
       tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
       res.pipe(tile);
       res.pipe(wstream);
     }).on('error', function(err) {
       var e = new Error('Tile Request Error');
       e.originalError = err;
+      e.tile = tile;
       tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
-      tile.emit('error', e, tile);
-      _this.emit('error', e, tile);
+      tile.emit('error', e);
+      _this.emit('error', e);
     }).on('socket', function(socket) {
       socket.setTimeout(tile.timeout);
       socket.on('timeout',function(){

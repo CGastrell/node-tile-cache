@@ -1,28 +1,22 @@
+<!DOCTYPE html>
 <html>
-    <head>
-    <!-- 
-     * Author:      Gianluca Guarini
-     * Contact:     gianluca.guarini@gmail.com
-     * Website:     http://www.gianlucaguarini.com/
-     * Twitter:     @gianlucaguarini
-    -->
-        <title>Push notification server</title>
-    </head>
-    <body>
-        <time></time>
-        <div id="container">Try to change your xml data to update this content</div>
-    <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.16/socket.io.min.js"></script>
-    <script src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
-    <script>
-    // creating a new websocket
-    var socket = io.connect('http://localhost');
-    // on every message recived we print the new datas inside the #container div
-    socket.on('notification', function (data) {
-        // convert the json string into a valid javascript object
-        var _data = JSON.parse(data);
-        $('#container').html(_data.test.sample);
-        $('time').html('Last Update:' + _data.time);
+<body>
+<h1>Tile Buffer</h1>
+<script src="http://cdn.socket.io/socket.io-1.0.6.js"></script>
+<!-- <script src="http://vm:5001/socket.io/socket.io.js"></script> -->
+<script src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
+<script>
+    var socket = io.connect('http://vm:5000');
+    socket.on('error', function(){
+        console.log(arguments);
     });
-    </script>
-    </body>
+    socket.on('connect', function () {
+      socket.send(window.location);
+      console.log('connected!');
+      socket.on('pageview', function(msg){
+        console.log(msg);
+      })
+    });
+</script>
+</body>
 </html>
