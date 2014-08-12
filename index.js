@@ -218,7 +218,8 @@ app.httpServer.listen(port, function () {
 });
 
 //socket stuff
-
+//copiando de:
+//http://coenraets.org/blog/2012/10/real-time-web-analytics-with-node-js-and-socket-io/
 var io = require('socket.io').listen(app.httpServer);
 io.sockets.on('error', function(){
   console.log('Sockets',arguments);
