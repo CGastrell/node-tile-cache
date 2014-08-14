@@ -130,7 +130,8 @@ grandTileCache.on('cache_hit',function(data){
 }).on('error',function(err, tile){
 	// log.error(err);
 	console.log('ERROR: ');
-	console.log(err);
+	console.log(err.message);
+	console.log(tile.stats.url);
 	// var lap = process.hrtime(tile.debugData.tileRequested);
 	// console.log('IN: ' + nanoToSeconds(lap));
 });
@@ -176,8 +177,8 @@ getTile = function(req,res) {
 	res.writeHead(200,head);
 	res.on('finish',function(){
 		tile.debugData.tileServed = process.hrtime(tile.debugData.tileRequested);
-		console.log('SERVED IN: '+nanoToSeconds(tile.debugData.tileServed));
 		grandTileCache.emit('tile_served',{type:'tile_served',tile:tile});
+		console.log('SERVED IN: '+nanoToSeconds(tile.debugData.tileServed));
 	});
 	tile.pipe(res);
 }
