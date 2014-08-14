@@ -6,6 +6,7 @@ var logger = require('bunyan');
 var http = require('http');
 var app = jaws();
 var port = process.env.PORT || 5000;
+var connectedObserver = [];
 
 function tileSerializer(tile) {
   if (!tile)
@@ -134,6 +135,9 @@ grandTileCache.on('cache_hit',function(data){
   // console.log(data.tile.debugData);
   console.log('TILE SERVED: ' + data.tile.stats.filePath);
   // log.info({req:data.tile.requestData, tile:data.tile},'TILE SERVED');
+  if(liveConnector) {
+    liveConnector.emit(data.type,{tile:data.tile});
+  }
 }).on('error',function(err){
   // log.error(err);
   console.log('ERROR: ');
@@ -151,12 +155,14 @@ getTile = function(req,res) {
     tileRead: null, //cuando termino de recibir el tile (hit -> disk io, miss -> response)
     tileServed: null //cuando termino de enviar al cliente
   };
-  // req.requestData = {
-  //  host: req.headers["host"],
-  //  client: req.connection.remoteAddress,
-  //  referer: req.headers["referer"],
-  //  "x-forwarded-for": req.headers["x-forwarded-for"]
-  // };
+  // console.log(req.headers);
+  req.requestData = {
+   host: req.headers["host"],
+   client: req.connection.remoteAddress,
+   referer: req.headers["referer"] || req.headers["host"],
+   "x-forwarded-for": req.headers["x-forwarded-for"] || "direct"
+  };
+  // console.log(req.requestData);
   var tile = grandTileCache.getTile(req);
 
   tile.on('error',function(err){
@@ -225,17 +231,28 @@ io.sockets.on('error', function(){
   console.log('Sockets',arguments);
 });
 io.sockets.on('connection', function (socket) {
+
   console.log('client connected');
+  connectedObserver.push(socket);
+
   socket.on('disconnect', function(){
     console.log('client disconnected');
+    var i = connectedObserver.indexOf(socket);
+    if(i > -1) {
+      delete connectedObserver[i];
+      connectedObserver.splice(i,1);
+    }
     liveConnector = null;
   });
+
   socket.on('error', function(){
     console.log('Socket',arguments);
   });
-    socket.on('message', function (message) {
-        console.log("Got message: " + message);
-        io.sockets.emit('pageview', { 'url': message });
-    });
+
+  socket.on('message', function (message) {
+      console.log("Got message from: ", message.origin);
+      io.sockets.emit('pageview', { 'url': message });
+  });
+
   liveConnector = io.sockets;
 });

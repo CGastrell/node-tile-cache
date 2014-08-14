@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Node Cellar</title>
+  <title>Node Tile Buffer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="">
   <meta name="author" content="">
@@ -161,7 +161,7 @@
       <div class="well col-md-3" style="text-align: center;">
           <h3>Right Now</h3>
           <p id="connections" style="font-size: 96px;line-height: 96px;">0</p>
-          <h5>active visitors</h5>
+          <h5>requests</h5>
       </div>
 
       <div class="col-md-9">
@@ -212,9 +212,15 @@
   var pages = {};
   var lastPageId = 0;
 
+  var tileServedHandler = function(data) {
+    console.log(data);
+  }
+
   socket.on('connect', function () {
 
     console.log('Socket connected');
+
+    socket.send(window.location);
 
     socket.on('pageview', function (msg) {
       $('#connections').html(msg.connections);
@@ -234,6 +240,13 @@
 
       }
     });
+
+    socket.on('tile_served', tileServedHandler);
+
+    socket.on('disconnect', function(){
+      console.log('server lost');
+      socket.off('tile_served', tileServedHandler);
+    })
 
   });
 

@@ -117,7 +117,7 @@ TileCache.prototype.getTile = function(req) {
   var _this = this;
   var rstream;
   var tile = new Tile(params);
-  tile.requestData = req;
+  tile.requestData = req.requestData;
   tile.debugData = req.debugData;
 
   if(this.options.tileTypes[tileType] && tileType) {
