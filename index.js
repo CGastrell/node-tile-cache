@@ -7,6 +7,16 @@ var http = require('http');
 var app = jaws();
 var port = process.env.PORT || 5000;
 var connectedObserver = [];
+var Leftronic = require('leftronic').createClient('3M33P93THfIIN6V4dIhO');
+
+var stats = {
+  requests: 0,
+  tiles: 0,
+  hits: 0,
+  miss: 0,
+  transfer: 0,
+  errors: 0
+}
 
 function tileSerializer(tile) {
   if (!tile)
@@ -18,8 +28,8 @@ function tileSerializer(tile) {
     capa: tile.capa,
     cached: tile.stats.cached,
     url: tile.stats.url,
-    read: tile.debugData.tileRead[0] * 1e9 + tile.debugData.tileRead[1],
-    serve: tile.debugData.tileServed[0] * 1e9 + tile.debugData.tileServed[1]
+    read: tile.hrtimers.read[0] * 1e9 + tile.hrtimers.read[1],
+    serve: tile.hrtimers.delivered[0] * 1e9 + tile.hrtimers.delivered[1]
   }
 };
 function reqSerializer(req) {
@@ -115,34 +125,54 @@ var grandTileCache = new tileCache({tileTypes:tiles,defaultTile:'256.png'});
 grandTileCache.on('cache_hit',function(data){
   // log.info(data.tile,'CACHE HIT');
   console.log('CACHE HIT: ' + data.tile.stats.url);
-  // var lap = process.hrtime(data.tile.debugData.tileRequested);
+  stats.hits++;
+  stats.transfer += data.tile.stats.fileSize;
+  // var lap = process.hrtime(data.tile.hrtimers.start);
   // console.log(lap[0] + 1 / 1000000000 * lap[1]);
-  if(liveConnector) {
-    liveConnector.emit(data.type,{url:data.tile.stats.url});
-  }
+  // if(liveConnector) {
+  //   liveConnector.emit(data.type,{url:data.tile.stats.url});
+  // }
 }).on('cache_miss',function(data){
   // log.info(data.tile,'CACHE MISS');
   console.log('CACHE MISS: ' + data.tile.stats.url);
-  // var lap = process.hrtime(data.tile.debugData.tileRequested);
+  stats.miss++;
+  // var lap = process.hrtime(data.tile.hrtimers.start);
   // console.log(lap[0] + 1 / 1000000000 * lap[1]);
-  if(liveConnector) {
-    liveConnector.emit(data.type,{url:data.tile.stats.url});
-  }
+  // if(liveConnector) {
+  //   liveConnector.emit(data.type,{url:data.tile.stats.url});
+  // }
 }).on('tile_served',function(data){
-  // Object.keys(data.tile.debugData).forEach(function(v){
-  //  console.log(v + ': '+ nanoToSeconds(data.tile.debugData[v]));
-  // });
-  // console.log(data.tile.debugData);
   console.log('TILE SERVED: ' + data.tile.stats.filePath);
+  stats.tiles++;
+  console.log(data.tile.stats.fileSize);
   // log.info({req:data.tile.requestData, tile:data.tile},'TILE SERVED');
-  if(liveConnector) {
-    liveConnector.emit(data.type,{tile:data.tile});
-  }
+  sendToClients(data.type,{
+    tileTimes:data.tile.hrtimers,
+    tileRequest:data.tile.requestData,
+    tileStats: data.tile.stats});
+  //3M33P93THfIIN6V4dIhO
+  Leftronic.pushNumber({
+    streamName: 'avgDeliverTime',
+    number: nanoToSeconds(data.tile.hrtimers.delivered),
+    suffix: 's'
+    }, function(err, result) {
+    if (err) console.log(err);
+    //console.log(result);
+  });
+  Leftronic.pushNumber({
+    streamName: 'avgTileSize',
+    number: data.tile.stats.fileSize / 1024,
+    suffix: 'Kb'
+    }, function(err, result) {
+    if (err) console.log(err);
+  });
+
 }).on('error',function(err){
   // log.error(err);
   console.log('ERROR: ');
   console.log(err);
-  // var lap = process.hrtime(tile.debugData.tileRequested);
+  stats.errors++;
+  // var lap = process.hrtime(tile.hrtimers.start);
   // console.log('IN: ' + nanoToSeconds(lap));
 });
 
@@ -150,10 +180,11 @@ grandTileCache.on('cache_hit',function(data){
 // Request Handlers
 getTile = function(req,res) {
   console.log('REQUEST: ' + req.url);
-  req.debugData = {
-    tileRequested: process.hrtime(), //cuando recibo el request, ns desde que esta corriendo el process
-    tileRead: null, //cuando termino de recibir el tile (hit -> disk io, miss -> response)
-    tileServed: null //cuando termino de enviar al cliente
+  stats.requests++;
+  req.hrtimers = {
+    start: process.hrtime(), //cuando recibo el request, ns desde que esta corriendo el process
+    read: null, //cuando termino de recibir el tile (hit -> disk io, miss -> response)
+    delivered: null //cuando termino de enviar al cliente
   };
   // console.log(req.headers);
   req.requestData = {
@@ -168,6 +199,7 @@ getTile = function(req,res) {
   tile.on('error',function(err){
     console.log('TILE ERROR:');
     console.log(err);
+    stats.errors++;
     //aca tendria que ir un switch para disintos errores
     // deberia responder una imagen vacia o algo que indique el error
     // res.error(err,408);
@@ -189,8 +221,8 @@ getTile = function(req,res) {
   }
   res.writeHead(200,head);
   res.on('finish',function(){
-    tile.debugData.tileServed = process.hrtime(tile.debugData.tileRequested);
-    console.log('SERVED IN: '+nanoToSeconds(tile.debugData.tileServed));
+    tile.hrtimers.delivered = process.hrtime(tile.hrtimers.start);
+    console.log('SERVED IN: '+nanoToSeconds(tile.hrtimers.delivered));
     grandTileCache.emit('tile_served',{type:'tile_served',tile:tile});
   });
   tile.pipe(res);
@@ -213,7 +245,7 @@ app.route('/tms/:capa/:z/:x/:y.:format', getTile).nocache();
 // app.route('/tms/:capa/:z/:x/:y.:format/status.json', queryTile).nocache();
 // app.route('/cache/status.json', cacheStats).nocache();
 
-app.route('/').nocache().file('wazzap.html');
+app.route('/givemestats').nocache().file('wazzap.html');
 
 app.httpServer.listen(port, function () {
   console.log('NodeTileCache started at port '+port);
@@ -223,6 +255,12 @@ app.httpServer.listen(port, function () {
   },1000 * 60 * 60);
 });
 
+function sendToClients(type,msg) {
+  if(!liveConnector) {
+    return false;
+  }
+  liveConnector.emit(type,msg);
+}
 //socket stuff
 //copiando de:
 //http://coenraets.org/blog/2012/10/real-time-web-analytics-with-node-js-and-socket-io/

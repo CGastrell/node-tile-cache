@@ -170,7 +170,7 @@
         <div class="row-fluid">
           <table id="visits" class="table table-bordered table-striped table-condensed">
             <thead>
-              <tr><td>URL</td><td>IP</td><td>Timestamp</td></tr>
+              <tr><td>Tile URL</td><td>Referer</td><td>Seconds</td><td>Cached</td></tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -212,8 +212,33 @@
   var pages = {};
   var lastPageId = 0;
 
+  var nanoToSeconds = function(hrtime) {
+    return (hrtime[0] * 1e9 + hrtime[1]) / 1e9;
+  }
   var tileServedHandler = function(data) {
     console.log(data);
+    var score = parseInt($('#connections').html(),10) + 1;
+    $('#connections').html(score);
+    // if (msg.url) {
+      if ($('#visits tr').length > 10) {
+        $('#visits tr:last').remove();
+      }
+      $('#visits tbody').prepend('<tr><td>' +
+        data.tileStats.request + '</td><td>' +
+        data.tileRequest.referer + '</td><td>' +
+        nanoToSeconds(data.tileTimes.delivered) + '</td><td>' +
+        data.tileStats.cached + '</td></tr>');
+
+      // if (pages[msg.url]) {
+      //   pages[msg.url].views = pages[msg.url].views + 1;
+      //   $('#page' + pages[msg.url].pageId).html(pages[msg.url].views);
+      // } else {
+      //   pages[msg.url] = {views: 1, pageId: ++lastPageId};
+      //   $('#pageViews tbody').append('<tr><td>' + msg.url + '</td><td id="page' + lastPageId + '">1</td></tr>');
+      // }
+
+    // }
+
   }
 
   socket.on('connect', function () {
@@ -223,22 +248,23 @@
     socket.send(window.location);
 
     socket.on('pageview', function (msg) {
-      $('#connections').html(msg.connections);
-      if (msg.url) {
-        if ($('#visits tr').length > 10) {
-          $('#visits tr:last').remove();
-        }
-        $('#visits tbody').prepend('<tr><td>' + msg.url + '</td><td>' + msg.ip + '</td><td>' + msg.timestamp + '</td></tr>');
+      // $('#connections').html(msg.connections);
+      // if (msg.url) {
+      //   if ($('#visits tr').length > 10) {
+      //     $('#visits tr:last').remove();
+      //   }
+      //   $('#visits tbody').prepend('<tr><td>' + msg.url + '</td><td>' + msg.ip + '</td><td>' + msg.timestamp + '</td></tr>');
 
-        if (pages[msg.url]) {
-          pages[msg.url].views = pages[msg.url].views + 1;
-          $('#page' + pages[msg.url].pageId).html(pages[msg.url].views);
-        } else {
-          pages[msg.url] = {views: 1, pageId: ++lastPageId};
-          $('#pageViews tbody').append('<tr><td>' + msg.url + '</td><td id="page' + lastPageId + '">1</td></tr>');
-        }
+      //   if (pages[msg.url]) {
+      //     pages[msg.url].views = pages[msg.url].views + 1;
+      //     $('#page' + pages[msg.url].pageId).html(pages[msg.url].views);
+      //   } else {
+      //     pages[msg.url] = {views: 1, pageId: ++lastPageId};
+      //     $('#pageViews tbody').append('<tr><td>' + msg.url + '</td><td id="page' + lastPageId + '">1</td></tr>');
+      //   }
 
-      }
+      // }
+      console.log('pageview');
     });
 
     socket.on('tile_served', tileServedHandler);

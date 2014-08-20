@@ -118,7 +118,7 @@ TileCache.prototype.getTile = function(req) {
   var rstream;
   var tile = new Tile(params);
   tile.requestData = req.requestData;
-  tile.debugData = req.debugData;
+  tile.hrtimers = req.hrtimers;
 
   if(this.options.tileTypes[tileType] && tileType) {
     //"extiendo" el tile segun el tipo (osm, argenmap, etc)
@@ -134,7 +134,7 @@ TileCache.prototype.getTile = function(req) {
     this.emit("error", err);
     fs.createReadStream(this.options.defaultTile)
       .on('end', function(){
-        tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
+        tile.hrtimers.read = process.hrtime(tile.hrtimers.start);
     }).pipe(tile);
     return tile;
   }
@@ -151,7 +151,7 @@ TileCache.prototype.getTile = function(req) {
         tile.emit('error', e, tile);
         _this.emit('error', e, tile);
     }).on('end', function(){
-        tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
+        tile.hrtimers.read = process.hrtime(tile.hrtimers.start);
     }).pipe(tile);
   }else{
     if(tile.stats.cached) {
@@ -164,21 +164,22 @@ TileCache.prototype.getTile = function(req) {
         _this.emit('error',err, tile);
     });
 
-    var options = {
-      host: "172.20.203.111",
-      port: 3128,
-      path: this.getUrl(tile)
-    }
-    var req2 = http.get(options, function(res){
-    // var req2 = http.get(this.getUrl(tile), function(res){
-      tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
+    // var options = {
+    //   host: "172.20.203.111",
+    //   port: 3128,
+    //   path: this.getUrl(tile)
+    // }
+    // var req2 = http.get(options, function(res){
+    var req2 = http.get(this.getUrl(tile), function(res){
+      tile.stats.fileSize = res.headers['content-length'];
+      tile.hrtimers.read = process.hrtime(tile.hrtimers.start);
       res.pipe(tile);
       res.pipe(wstream);
     }).on('error', function(err) {
       var e = new Error('Tile Request Error');
       e.originalError = err;
       e.tile = tile;
-      tile.debugData.tileRead = process.hrtime(tile.debugData.tileRequested);
+      tile.hrtimers.read = process.hrtime(tile.hrtimers.start);
       tile.emit('error', e);
       _this.emit('error', e);
     }).on('socket', function(socket) {
