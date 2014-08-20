@@ -156,7 +156,7 @@ grandTileCache.on('cache_hit',function(data){
     number: nanoToSeconds(data.tile.hrtimers.delivered),
     suffix: 's'
     }, function(err, result) {
-    if (err) console.log(err);
+    if (err) console.log('left err:' + err);
     //console.log(result);
   });
   Leftronic.pushNumber({
@@ -164,7 +164,7 @@ grandTileCache.on('cache_hit',function(data){
     number: data.tile.stats.fileSize / 1024,
     suffix: 'Kb'
     }, function(err, result) {
-    if (err) console.log(err);
+    if (err) console.log('left err2:' + err);
   });
 
 }).on('error',function(err){

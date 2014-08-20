@@ -25,10 +25,10 @@
   },
   "homepage": "https://github.com/CGastrell/node-tile-cache",
   "dependencies": {
-    "bunyan": "~0.23.1",
-    "jaws": "~0.12.1",
-    "leftronic": "^0.1.1",
-    "socket.io": "~1.0.6"
+    "bunyan": "0.23.1",
+    "jaws": "0.12.1",
+    "leftronic": "0.1.1",
+    "socket.io": "1.0.6"
   },
   "engines": {
     "node": "0.10.x"
