@@ -164,13 +164,13 @@ TileCache.prototype.getTile = function(req) {
         _this.emit('error',err, tile);
     });
 
-    var options = {
-      host: "172.20.203.111",
-      port: 3128,
-      path: this.getUrl(tile)
-    }
-    var req2 = http.get(options, function(res){
-    // var req2 = http.get(this.getUrl(tile), function(res){
+    // var options = {
+    //   host: "172.20.203.111",
+    //   port: 3128,
+    //   path: this.getUrl(tile)
+    // }
+    // var req2 = http.get(options, function(res){
+    var req2 = http.get(this.getUrl(tile), function(res){
       tile.stats.fileSize = res.headers['content-length'];
       tile.hrtimers.read = process.hrtime(tile.hrtimers.start);
       res.pipe(tile);
